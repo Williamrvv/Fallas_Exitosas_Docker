@@ -22,9 +22,60 @@ auth_exigir('usuarios', true);
 $Gv_Mensaje = '';
 $Gv_Tipo    = 'info';
 
+/** Convierte una selección de IDs en enteros positivos y únicos. */
+function usuarios_ids_seleccionados(mixed $Pm_Valores_i): array
+{
+    if (!is_array($Pm_Valores_i)) {
+        return [];
+    }
+
+    $Lar_Resultado = [];
+
+    foreach ($Pm_Valores_i as $Lm_Valor) {
+        $Li_Id = filter_var($Lm_Valor, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+
+        if ($Li_Id !== false) {
+            $Lar_Resultado[(int) $Li_Id] = (int) $Li_Id;
+        }
+    }
+
+    return array_values($Lar_Resultado);
+}
+
+/** Convierte valores nivel:id en ámbitos válidos y únicos. */
+function usuarios_ambitos_seleccionados(mixed $Pm_Valores_i): array
+{
+    if (!is_array($Pm_Valores_i)) {
+        return [];
+    }
+
+    $Lar_Resultado = [];
+
+    foreach ($Pm_Valores_i as $Lm_Valor) {
+        if (!is_string($Lm_Valor)
+            || preg_match('/\\A(region|pais|zona|oficina):([1-9][0-9]*)\\z/', $Lm_Valor, $Lar_Coincidencia) !== 1) {
+            throw new InvalidArgumentException('Uno de los ámbitos seleccionados no es válido.');
+        }
+
+        $Lv_Nivel = $Lar_Coincidencia[1];
+        $Li_Id    = (int) $Lar_Coincidencia[2];
+        $Lv_Clave = $Lv_Nivel . ':' . $Li_Id;
+
+        $Lar_Resultado[$Lv_Clave] = [
+            'nivel' => $Lv_Nivel,
+            'id'    => $Li_Id,
+        ];
+    }
+
+    return array_values($Lar_Resultado);
+}
+
 /* --------------------------------------------------------------------------
    Acciones
    -------------------------------------------------------------------------- */
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_validar($_POST['csrf_token'] ?? null)) {
         $Gv_Mensaje = 'La solicitud perdió validez. Volvé a enviar el formulario.';
