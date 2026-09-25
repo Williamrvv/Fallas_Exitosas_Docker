@@ -495,7 +495,8 @@ $Gar_EdicionAmbitos = [];
 
 if ($Gi_Editando > 0) {
     $Gar_Edicion = db_fila(
-        'SELECT usuario_id, correo, nombre, puesto, is_activo, entra_oid, ultimo_ingreso_at
+        'SELECT usuario_id, correo, nombre, puesto, is_activo, entra_oid, ultimo_ingreso_at,
+                created_at, created_by, updated_at, updated_by
          FROM fx.usuario WHERE usuario_id = :usuario_id',
         [':usuario_id' => $Gi_Editando]
     );
@@ -641,14 +642,17 @@ vista_encabezado([
                     ?>
                     <tr<?= $Lb_EnEdicion ? ' class="fila-edicion"' : '' ?>>
                         <td>
-                            <div class="uname">
-                                <?= e($Lar_Fila['nombre']) ?>
-                                <?php if ($Lb_EsPropio): ?><span class="sc ms-1">vos</span><?php endif; ?>
-                            </div>
-                            <div class="umail"><?= e($Lar_Fila['correo']) ?></div>
-                            <?php if (!empty($Lar_Fila['puesto'])): ?>
-                                <div class="umail"><?= e($Lar_Fila['puesto']) ?></div>
-                            <?php endif; ?>
+                            <!-- Toda la ficha es un enlace: abre el detalle sin depender de JavaScript. -->
+                            <a class="ficha" href="/admin/usuarios.php?editar=<?= (int) $Lar_Fila['usuario_id'] ?>">
+                                <div class="uname">
+                                    <?= e($Lar_Fila['nombre']) ?>
+                                    <?php if ($Lb_EsPropio): ?><span class="sc ms-1">vos</span><?php endif; ?>
+                                </div>
+                                <div class="umail"><?= e($Lar_Fila['correo']) ?></div>
+                                <?php if (!empty($Lar_Fila['puesto'])): ?>
+                                    <div class="umail"><?= e($Lar_Fila['puesto']) ?></div>
+                                <?php endif; ?>
+                            </a>
                         </td>
                         <td>
                             <span class="scope">
@@ -795,11 +799,63 @@ vista_encabezado([
 
             <?php if ($Gi_Editando > 0): ?>
                 <div class="panel-sep mt-3 pt-3">
-                    <div class="sample-note mb-2">
-                        <i class="bi bi-person-badge me-1"></i>
-                        Identidad de Entra:
-                        <?= $Gar_Edicion['entra_oid'] !== null ? 'enlazada' : 'pendiente del primer ingreso' ?>.
-                    </div>
+                    <div class="chk-title mb-2">Detalle</div>
+
+                    <dl class="ficha-datos">
+                        <dt>Estado</dt>
+                        <dd>
+                            <?php if ((int) $Gar_Edicion['is_activo'] === 1): ?>
+                                <span class="st st-on"><span class="d"></span>Activo</span>
+                            <?php else: ?>
+                                <span class="st st-off"><span class="d"></span>Inactivo</span>
+                            <?php endif; ?>
+                        </dd>
+
+                        <dt>Identidad de Entra</dt>
+                        <dd><?= $Gar_Edicion['entra_oid'] !== null ? 'Enlazada' : 'Pendiente del primer ingreso' ?></dd>
+
+                        <dt>Último ingreso</dt>
+                        <dd><?= $Gar_Edicion['ultimo_ingreso_at'] !== null
+                                ? e(date('d M Y, H:i', strtotime((string) $Gar_Edicion['ultimo_ingreso_at'])))
+                                : 'Nunca' ?></dd>
+
+                        <dt>Autorizado</dt>
+                        <dd>
+                            <?= e(date('d M Y', strtotime((string) $Gar_Edicion['created_at']))) ?>
+                            <?php if (!empty($Gar_Edicion['created_by'])): ?>
+                                · <?= e((string) $Gar_Edicion['created_by']) ?>
+                            <?php endif; ?>
+                        </dd>
+
+                        <?php if (!empty($Gar_Edicion['updated_at'])): ?>
+                            <dt>Última modificación</dt>
+                            <dd>
+                                <?= e(date('d M Y, H:i', strtotime((string) $Gar_Edicion['updated_at']))) ?>
+                                <?php if (!empty($Gar_Edicion['updated_by'])): ?>
+                                    · <?= e((string) $Gar_Edicion['updated_by']) ?>
+                                <?php endif; ?>
+                            </dd>
+                        <?php endif; ?>
+                    </dl>
+
+                    <?php if ((int) $Gar_Edicion['usuario_id'] !== (int) $Gar_Usuario['usuario_id']): ?>
+                        <form method="post" action="/admin/usuarios.php" class="mt-2">
+                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                            <input type="hidden" name="accion" value="cambiar_estado">
+                            <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
+                            <button class="btn btn-ghost btn-sm w-100" type="submit">
+                                <i class="bi bi-person-dash me-1"></i>
+                                <?= (int) $Gar_Edicion['is_activo'] === 1 ? 'Dar de baja' : 'Reactivar usuario' ?>
+                            </button>
+                        </form>
+                        <div class="sample-note mt-1">
+                            La baja es lógica: deja de poder ingresar y el histórico se conserva.
+                        </div>
+                    <?php else: ?>
+                        <div class="sample-note mt-2">
+                            No podés darte de baja a vos mismo ni desvincular tu propia identidad.
+                        </div>
+                    <?php endif; ?>
 
                     <?php if ($Gar_Edicion['entra_oid'] !== null
                               && (int) $Gar_Edicion['usuario_id'] !== (int) $Gar_Usuario['usuario_id']): ?>
@@ -821,7 +877,7 @@ vista_encabezado([
             <?php else: ?>
                 <div class="sample-note mt-3">
                     <i class="bi bi-upload me-1"></i>
-                    El alta masiva se hace por carga directa a <code>fx.usuario</code>.
+                    El alta masiva se hace por carga directa a ere<code>fx.usuario</code>.
                 </div>
             <?php endif; ?>
         </div>

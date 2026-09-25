@@ -63,8 +63,8 @@ function vista_encabezado(array $Par_Pagina_i): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fallas Exitosas · <?= e($Par_Pagina_i['titulo']) ?></title>
 <link rel="icon" href="/assets/logos/favicon-192.png">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/assets/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/assets/vendor/bootstrap-icons.min.css" rel="stylesheet">
 <link href="/assets/styles.css" rel="stylesheet">
 </head>
 <body>
