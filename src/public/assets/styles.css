@@ -5,6 +5,7 @@
    Autor     : William Valverde V.
    Fecha     : 2026-09-24
    Bitácora  : 2026-09-24 Versión inicial, tomada de la propuesta aprobada.
+               2026-09-25 Formulario de ingreso con correo y contraseña.
 
    Poppins se sirve desde el propio contenedor: la aplicación no depende de
    una fuente externa para renderizar correctamente.
@@ -120,6 +121,21 @@ table.tbl tr:last-child td{border-bottom:none}
 .btn-ms{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:48px;border-radius:10px;
   background:var(--anc-azul);color:#fff;font-weight:500;font-size:14px;border:0;text-decoration:none}
 .btn-ms:hover{background:#004a97;color:#fff}
+.btn-ms-secundario{background:#fff;color:var(--anc-azul);border:1px solid rgba(0,92,185,.35)}
+.btn-ms-secundario:hover{background:rgba(0,92,185,.06);color:var(--anc-azul)}
+
+/* Ingreso con correo y contraseña */
+.login-form{display:flex;flex-direction:column}
+.campo-etiqueta{font-size:12.5px;font-weight:500;color:var(--ink);margin:0 0 6px}
+.campo{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;padding:0 14px;
+  font:inherit;font-size:14px;color:var(--ink);background:#fff;margin-bottom:16px}
+.campo:focus{outline:none;border-color:var(--anc-azul);box-shadow:0 0 0 3px rgba(0,92,185,.15)}
+.btn-ingresar{height:48px;border:0;border-radius:10px;background:var(--anc-azul);color:#fff;
+  font:inherit;font-weight:500;font-size:14px;cursor:pointer;margin-top:4px}
+.btn-ingresar:hover{background:#004a97}
+.btn-ingresar:focus-visible,.btn-ms:focus-visible{outline:3px solid rgba(0,92,185,.35);outline-offset:2px}
+.separador{display:flex;align-items:center;gap:12px;margin:20px 0;color:#9aa5b1;font-size:12px}
+.separador::before,.separador::after{content:'';flex:1;height:1px;background:var(--line)}
 .login-foot{font-size:11px;color:#9aa5b1;margin-top:22px;text-align:center;line-height:1.6}
 .alerta{border-radius:10px;padding:12px 14px;font-size:12.5px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start}
 .alerta-info{background:rgba(0,92,185,.08);color:#00427f;border:1px solid rgba(0,92,185,.2)}

@@ -7,7 +7,8 @@
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-24
  * Bitácora  : 2026-09-24 Versión inicial.
- *             2026-09-25 Aclaración: las credenciales se ingresan en Microsoft.
+ *             2026-09-25 Formulario de correo y contraseña con estilos propios;
+ *                        Bootstrap local por la política CSP de Apache.
  */
 
 declare(strict_types=1);
@@ -35,7 +36,6 @@ $Gar_Avisos = [
     'credenciales'   => ['error', 'Correo o contraseña incorrectos.'],
     'bloqueado'      => ['error', 'Demasiados intentos fallidos. Esperá 15 minutos antes de volver a intentar.'],
 ];
-];
 
 $Gv_Aviso  = (string) ($_GET['aviso'] ?? '');
 $Gar_Aviso = $Gar_Avisos[$Gv_Aviso] ?? null;
@@ -62,8 +62,8 @@ $Gar_AvisoServicio = match ($Gar_Disponibilidad['motivo']) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fallas Exitosas · Ingreso</title>
 <link rel="icon" href="/assets/logos/favicon-192.png">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/assets/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/assets/vendor/bootstrap-icons.min.css" rel="stylesheet">
 <link href="/assets/styles.css" rel="stylesheet">
 </head>
 <body>
@@ -88,31 +88,26 @@ $Gar_AvisoServicio = match ($Gar_Disponibilidad['motivo']) {
             </div>
         <?php endif; ?>
 
-        <form method="post" action="/login-local.php" class="text-start mb-2">
+        <form method="post" action="/login-local.php" class="login-form">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-            <div class="mb-2">
-                <label for="correo" class="form-label small mb-1">Correo</label>
-                <input type="email" class="form-control" id="correo" name="correo"
-                       autocomplete="username" maxlength="160" required>
-            </div>
-            <div class="mb-3">
-                <label for="clave" class="form-label small mb-1">Contraseña</label>
-                <input type="password" class="form-control" id="clave" name="clave"
-                       autocomplete="current-password" maxlength="256" required>
-            </div>
-            <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+
+            <label for="correo" class="campo-etiqueta">Correo</label>
+            <input type="email" class="campo" id="correo" name="correo"
+                   autocomplete="username" maxlength="160" required>
+
+            <label for="clave" class="campo-etiqueta">Contraseña</label>
+            <input type="password" class="campo" id="clave" name="clave"
+                   autocomplete="current-password" maxlength="256" required>
+
+            <button type="submit" class="btn-ingresar">Ingresar</button>
         </form>
 
         <?php if ($Gb_EntraLista): ?>
-            <p class="small text-muted text-center my-2">o</p>
-            <a class="btn-ms" href="/login.php">
+            <div class="separador"><span>o</span></div>
+            <a class="btn-ms btn-ms-secundario" href="/login.php">
                 <i class="bi bi-microsoft"></i>
                 Iniciar sesión con Microsoft
             </a>
-            <p class="small text-muted text-center mt-2 mb-0">
-                Te llevaremos a la página de Microsoft para escribir tu correo
-                y contraseña corporativos.
-            </p>
         <?php else: ?>
             <div class="alerta alerta-info">
                 <i class="bi bi-gear"></i>
