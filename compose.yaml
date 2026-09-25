@@ -1,0 +1,78 @@
+# =============================================================================
+# Fallas Exitosas · Orquestación del front-end
+# -----------------------------------------------------------------------------
+# Propósito : Levantar únicamente el contenedor PHP. SQL Server y n8n viven
+#             fuera (motor de SQL Server del entorno de William) y se alcanzan
+#             por red; este proyecto no instala ni administra un motor.
+# Autor     : William Valverde V.
+# Fecha     : 2026-09-24
+#
+# Uso       : docker compose up -d
+# =============================================================================
+services:
+  web:
+    build:
+      context: .
+    container_name: ${PROJECT_NAME:-fallas_exitosas}_web
+    ports:
+      # HTTP solo redirige al origen HTTPS. El acceso real es por TLS.
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8320}:80"
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT_SSL:-44320}:443"
+    environment:
+      APP_ENV: "${APP_ENV:-desarrollo}"
+      APP_PUBLIC_ORIGIN: "${APP_PUBLIC_ORIGIN}"
+      SESSION_IDLE_TIMEOUT: "${SESSION_IDLE_TIMEOUT:-1800}"
+      SESSION_ABSOLUTE_TIMEOUT: "${SESSION_ABSOLUTE_TIMEOUT:-28800}"
+
+      # --- Base de datos propia (SQL Server) ---
+      DB_HOST: "${DB_HOST}"
+      DB_PORT: "${DB_PORT:-1433}"
+      DB_NAME: "${DB_NAME}"
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_ENCRYPT: "${DB_ENCRYPT:-no}"
+      DB_TRUST_CERT: "${DB_TRUST_CERT:-yes}"
+
+      # --- Microsoft Entra ID (OpenID Connect) ---
+      O365_TENANT_ID: "${O365_TENANT_ID}"
+      O365_CLIENT_ID: "${O365_CLIENT_ID}"
+      O365_CLIENT_SECRET: "${O365_CLIENT_SECRET}"
+      O365_REDIRECT_URI: "${O365_REDIRECT_URI}"
+
+      # --- Espejo TSD (solo lectura, para fases posteriores) ---
+      TSD_DB_HOST: "${TSD_DB_HOST:-}"
+      TSD_DB_NAME: "${TSD_DB_NAME:-}"
+      TSD_DB_USER: "${TSD_DB_USER:-}"
+      TSD_DB_PASSWORD: "${TSD_DB_PASSWORD:-}"
+
+      # --- Correo saliente (alertas, fases posteriores) ---
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+
+      # --- TLS: CA local para desarrollo; en producción montar certificados ---
+      TLS_DEVELOPMENT_CA_ENABLED: "${TLS_DEVELOPMENT_CA_ENABLED:-true}"
+      TLS_CERTIFICATE_COMMON_NAME: "${TLS_CERTIFICATE_COMMON_NAME:-localhost}"
+      TLS_CERTIFICATE_SAN: "${TLS_CERTIFICATE_SAN:-DNS:localhost,IP:127.0.0.1,IP:::1}"
+      TLS_CA_CERTIFICATE_PATH: "/var/lib/fallas-exitosas/tls/local-ca.crt"
+      TLS_CA_PRIVATE_KEY_PATH: "/var/lib/fallas-exitosas/tls/local-ca.key"
+      TLS_CERTIFICATE_PATH: "/var/lib/fallas-exitosas/tls/server.crt"
+      TLS_PRIVATE_KEY_PATH: "/var/lib/fallas-exitosas/tls/server.key"
+    volumes:
+      - tls_material:/var/lib/fallas-exitosas/tls
+      # Los scripts se montan en solo lectura para poder cargarlos sin reconstruir.
+      - ./database:/opt/fallas-exitosas/database:ro
+    networks:
+      - anc_net
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  tls_material:
+
+networks:
+  anc_net:
+    name: ${PROJECT_NAME:-fallas_exitosas}_net
+    driver: bridge

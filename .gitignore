@@ -1,0 +1,14 @@
+# Fallas Exitosas · exclusiones de control de versiones
+.env
+*.local
+/tls/
+*.crt
+*.key
+*.pem
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+vendor/
+node_modules/
