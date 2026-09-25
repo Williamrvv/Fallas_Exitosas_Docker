@@ -66,6 +66,7 @@ function vista_encabezado(array $Par_Pagina_i): void
 <link href="/assets/vendor/bootstrap.min.css" rel="stylesheet">
 <link href="/assets/vendor/bootstrap-icons.min.css" rel="stylesheet">
 <link href="/assets/styles.css" rel="stylesheet">
+<script src="/assets/app.js" defer></script>
 </head>
 <body>
 

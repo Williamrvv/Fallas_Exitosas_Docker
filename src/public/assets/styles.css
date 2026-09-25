@@ -143,11 +143,11 @@ table.tbl tr:last-child td{border-bottom:none}
 .alerta-error{background:rgba(233,78,27,.09);color:#a83512;border:1px solid rgba(233,78,27,.25)}
 
 /* Formularios de administración (panel lateral) */
-.card-anc .form-label{font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px}
-.card-anc .form-control{font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
-.card-anc .form-control:focus{border-color:var(--anc-azul);box-shadow:0 0 0 3px rgba(0,92,185,.15)}
-.card-anc .form-control::placeholder{color:#9aa5b1}
-.card-anc fieldset legend.form-label{float:none;width:auto;font-size:12.5px;font-weight:600;line-height:1.4;margin-bottom:8px}
+.card-anc .form-label,.modal-anc .form-label{font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.card-anc .form-control,.modal-anc .form-control{font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.card-anc .form-control:focus,.modal-anc .form-control:focus{border-color:var(--anc-azul);box-shadow:0 0 0 3px rgba(0,92,185,.15)}
+.card-anc .form-control::placeholder,.modal-anc .form-control::placeholder{color:#9aa5b1}
+.card-anc fieldset legend.form-label,.modal-anc fieldset legend.form-label{float:none;width:auto;font-size:12.5px;font-weight:600;line-height:1.4;margin-bottom:8px}
 .chk-list{display:flex;flex-direction:column;gap:6px}
 .chk-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .chk-group + .chk-group{margin-top:8px}
@@ -172,6 +172,29 @@ table.tbl tr:last-child td{border-bottom:none}
 .fila-edicion td{background:rgba(0,92,185,.05)}
 .fila-edicion td:first-child{box-shadow:inset 3px 0 0 var(--anc-azul)}
 .acciones{display:inline-flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+
+/* Modal de alta y edición: el servidor lo dibuja abierto y app.js lo vuelve modal real */
+.modal-anc{padding:0;border:0;border-radius:15px;background:var(--surface);color:var(--ink);overflow:hidden;
+  width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 48px);
+  box-shadow:0 18px 50px rgba(0,0,0,.18),0 0 0 100vmax rgba(16,24,40,.45)}
+.modal-anc[open]{position:fixed;inset:0;margin:auto;height:fit-content;z-index:1050;display:flex;flex-direction:column}
+.modal-anc:modal{box-shadow:0 18px 50px rgba(0,0,0,.18)}
+.modal-anc::backdrop{background:rgba(16,24,40,.45)}
+body:has(.modal-anc[open]){overflow:hidden}
+.modal-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 22px;border-bottom:1px solid var(--line-soft)}
+.modal-cab h2{font-size:16px;font-weight:600;margin:0}
+.modal-cab .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.modal-x{display:flex;align-items:center;justify-content:center;flex:0 0 34px;width:34px;height:34px;border-radius:10px;color:#48535f;text-decoration:none}
+.modal-x:hover{background:var(--bg);color:var(--ink)}
+.modal-cuerpo{padding:20px 22px;overflow-y:auto;flex:1 1 auto;min-height:0}
+.modal-pie{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px;border-top:1px solid var(--line-soft);background:#fcfdfe}
+.modal-acciones{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.chk-list-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.modal-anc .chk-group{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:640px){
+  .chk-list-2{grid-template-columns:1fr}
+  .modal-anc .chk-group{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 
 @media (max-width:820px){
   .sidebar{display:none}

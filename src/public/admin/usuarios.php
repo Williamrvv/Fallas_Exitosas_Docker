@@ -12,6 +12,8 @@
  *             2026-09-25 Edición completa de usuarios, roles y ámbitos
  *                        múltiples, desvinculación de Entra ID y protección
  *                        del último administrador activo.
+ *             2026-09-25 Alta y edición en modal; confirmaciones sin JavaScript
+ *                        en línea, que la política CSP bloquea.
  *
  * Seguridad : Requiere permiso completo sobre `usuarios`. La verificación es
  *             de servidor; el menú solo refleja el resultado.
@@ -538,6 +540,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $Gv_Tipo === 'error') {
         : [];
 }
 
+/* --------------------------------------------------------------------------
+   Modal de alta y edición
+
+   Se abre con ?editar=ID o ?nuevo=1, y también cuando el servidor rechazó el
+   alta, para que la persona corrija sin perder lo que había escrito.
+   -------------------------------------------------------------------------- */
+$Gv_AccionRechazada = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $Gv_Tipo === 'error'
+    ? (string) ($_POST['accion'] ?? '')
+    : '';
+
+$Gb_ModalAbierto = $Gi_Editando > 0
+    || isset($_GET['nuevo'])
+    || $Gv_AccionRechazada === 'autorizar';
+
+$Gb_Reenvio = in_array($Gv_AccionRechazada, ['autorizar', 'editar'], true);
+
+$Gar_Formulario = [
+    'correo' => $Gb_Reenvio ? trim((string) ($_POST['correo'] ?? '')) : (string) ($Gar_Edicion['correo'] ?? ''),
+    'nombre' => $Gb_Reenvio ? trim((string) ($_POST['nombre'] ?? '')) : (string) ($Gar_Edicion['nombre'] ?? ''),
+    'puesto' => $Gb_Reenvio ? trim((string) ($_POST['puesto'] ?? '')) : (string) ($Gar_Edicion['puesto'] ?? ''),
+];
+
 $Gi_Activos = 0;
 foreach ($Gar_Usuarios as $Lar_Fila) {
     $Gi_Activos += (int) $Lar_Fila['is_activo'];
@@ -578,7 +602,7 @@ vista_encabezado([
 ]);
 ?>
 
-<?php if ($Gv_Mensaje !== ''): ?>
+<?php if ($Gv_Mensaje !== '' && !$Gb_ModalAbierto): ?>
     <div class="alerta alerta-<?= e($Gv_Tipo) ?>" role="alert">
         <i class="bi bi-<?= $Gv_Tipo === 'error' ? 'exclamation-triangle' : 'check-circle' ?>"></i>
         <span><?= e($Gv_Mensaje) ?></span>
@@ -615,14 +639,12 @@ vista_encabezado([
 </div>
 
 <div class="row g-3 mt-1">
-    <div class="col-xl-8"><div class="card-anc">
+    <div class="col-12"><div class="card-anc">
         <div class="ch">
             <div><h2>Usuarios</h2><div class="sub">Rol y ámbito efectivo</div></div>
-            <?php if ($Gi_Editando > 0): ?>
-                <a class="btn btn-ghost btn-sm" href="/admin/usuarios.php">
-                    <i class="bi bi-plus-lg me-1"></i>Nuevo usuario
-                </a>
-            <?php endif; ?>
+            <a class="btn btn-anc btn-sm" href="/admin/usuarios.php?nuevo=1">
+                <i class="bi bi-plus-lg me-1"></i>Nuevo usuario
+            </a>
         </div>
         <div class="cb">
             <table class="tbl">
@@ -723,41 +745,59 @@ vista_encabezado([
         </div>
     </div></div>
 
-    <div class="col-xl-4"><div class="card-anc h-100">
-        <div class="ch"><div>
-            <h2><?= $Gi_Editando > 0 ? 'Editar usuario' : 'Autorizar usuario' ?></h2>
-            <div class="sub"><?= $Gi_Editando > 0 ? e((string) $Gar_Edicion['correo']) : 'Alta individual' ?></div>
-        </div></div>
-        <div class="cb" style="padding:16px 18px">
-            <form method="post" action="/admin/usuarios.php">
+</div>
+
+<?php if ($Gb_ModalAbierto): ?>
+    <?php $Lb_EsNuevo = $Gi_Editando === 0; ?>
+    <dialog class="modal-anc" open aria-labelledby="modal-usuario-titulo"
+            data-modal data-cerrar="/admin/usuarios.php">
+        <div class="modal-cab">
+            <div>
+                <h2 id="modal-usuario-titulo"><?= $Lb_EsNuevo ? 'Autorizar usuario' : 'Editar usuario' ?></h2>
+                <div class="sub"><?= $Lb_EsNuevo ? 'Alta individual' : e((string) $Gar_Edicion['correo']) ?></div>
+            </div>
+            <a class="modal-x" href="/admin/usuarios.php" aria-label="Cerrar sin guardar">
+                <i class="bi bi-x-lg"></i>
+            </a>
+        </div>
+
+        <div class="modal-cuerpo">
+            <?php if ($Gv_Mensaje !== ''): ?>
+                <div class="alerta alerta-<?= e($Gv_Tipo) ?>" role="alert">
+                    <i class="bi bi-<?= $Gv_Tipo === 'error' ? 'exclamation-triangle' : 'check-circle' ?>"></i>
+                    <span><?= e($Gv_Mensaje) ?></span>
+                </div>
+            <?php endif; ?>
+
+            <form id="form-usuario" method="post" action="/admin/usuarios.php">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                <input type="hidden" name="accion" value="<?= $Gi_Editando > 0 ? 'editar' : 'autorizar' ?>">
-                <?php if ($Gi_Editando > 0): ?>
+                <input type="hidden" name="accion" value="<?= $Lb_EsNuevo ? 'autorizar' : 'editar' ?>">
+                <?php if (!$Lb_EsNuevo): ?>
                     <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
                 <?php endif; ?>
 
-                <div class="mb-3">
-                    <label class="form-label" for="correo">Correo corporativo (Entra ID)</label>
-                    <input class="form-control" type="email" id="correo" name="correo"
-                           value="<?= $Gi_Editando > 0 ? e((string) $Gar_Edicion['correo']) : '' ?>"
-                           placeholder="nombre.apellido@grupoanc.com" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label" for="nombre">Nombre completo</label>
-                    <input class="form-control" type="text" id="nombre" name="nombre"
-                           value="<?= $Gi_Editando > 0 ? e((string) $Gar_Edicion['nombre']) : '' ?>" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label" for="puesto">Puesto <span class="sample-note">(opcional)</span></label>
-                    <input class="form-control" type="text" id="puesto" name="puesto"
-                           value="<?= $Gi_Editando > 0 ? e((string) ($Gar_Edicion['puesto'] ?? '')) : '' ?>">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="correo">Correo corporativo (Entra ID)</label>
+                        <input class="form-control" type="email" id="correo" name="correo"
+                               value="<?= e($Gar_Formulario['correo']) ?>"
+                               placeholder="nombre.apellido@grupoanc.com" maxlength="160" required autofocus>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="nombre">Nombre completo</label>
+                        <input class="form-control" type="text" id="nombre" name="nombre"
+                               value="<?= e($Gar_Formulario['nombre']) ?>" maxlength="160" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="puesto">Puesto <span class="sample-note">(opcional)</span></label>
+                        <input class="form-control" type="text" id="puesto" name="puesto"
+                               value="<?= e($Gar_Formulario['puesto']) ?>" maxlength="120">
+                    </div>
                 </div>
 
                 <fieldset class="mb-3">
                     <legend class="form-label">Roles funcionales</legend>
-                    <div class="chk-list">
+                    <div class="chk-list chk-list-2">
                         <?php foreach ($Gar_Roles as $Lar_Rol): ?>
                             <label class="chk">
                                 <input type="checkbox" name="roles[]" value="<?= (int) $Lar_Rol['rol_id'] ?>"
@@ -772,7 +812,7 @@ vista_encabezado([
                     <div class="sample-note mt-1">Se puede asignar más de un rol; los permisos se suman.</div>
                 </fieldset>
 
-                <fieldset class="mb-3">
+                <fieldset>
                     <legend class="form-label">Ámbito geográfico</legend>
                     <div class="chk-list">
                         <?php
@@ -786,19 +826,11 @@ vista_encabezado([
                         Se pueden combinar niveles. La región concede todos sus países activos.
                     </div>
                 </fieldset>
-
-                <div class="d-flex gap-2">
-                    <button class="btn btn-anc flex-grow-1" type="submit">
-                        <i class="bi bi-check2 me-1"></i><?= $Gi_Editando > 0 ? 'Guardar cambios' : 'Guardar autorización' ?>
-                    </button>
-                    <?php if ($Gi_Editando > 0): ?>
-                        <a class="btn btn-ghost" href="/admin/usuarios.php">Cancelar</a>
-                    <?php endif; ?>
-                </div>
             </form>
 
-            <?php if ($Gi_Editando > 0): ?>
-                <div class="panel-sep mt-3 pt-3">
+            <?php if (!$Lb_EsNuevo): ?>
+                <?php $Lb_EsPropioEdicion = (int) $Gar_Edicion['usuario_id'] === (int) $Gar_Usuario['usuario_id']; ?>
+                <div class="panel-sep mt-4 pt-3">
                     <div class="chk-title mb-2">Detalle</div>
 
                     <dl class="ficha-datos">
@@ -838,50 +870,66 @@ vista_encabezado([
                         <?php endif; ?>
                     </dl>
 
-                    <?php if ((int) $Gar_Edicion['usuario_id'] !== (int) $Gar_Usuario['usuario_id']): ?>
-                        <form method="post" action="/admin/usuarios.php" class="mt-2">
-                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                            <input type="hidden" name="accion" value="cambiar_estado">
-                            <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
-                            <button class="btn btn-ghost btn-sm w-100" type="submit">
-                                <i class="bi bi-person-dash me-1"></i>
-                                <?= (int) $Gar_Edicion['is_activo'] === 1 ? 'Dar de baja' : 'Reactivar usuario' ?>
-                            </button>
-                        </form>
-                        <div class="sample-note mt-1">
-                            La baja es lógica: deja de poder ingresar y el histórico se conserva.
-                        </div>
-                    <?php else: ?>
-                        <div class="sample-note mt-2">
+                    <?php if ($Lb_EsPropioEdicion): ?>
+                        <div class="sample-note mt-3">
                             No podés darte de baja a vos mismo ni desvincular tu propia identidad.
                         </div>
-                    <?php endif; ?>
+                    <?php else: ?>
+                        <div class="modal-acciones mt-3">
+                            <div>
+                                <form method="post" action="/admin/usuarios.php"
+                                      <?= (int) $Gar_Edicion['is_activo'] === 1
+                                          ? 'data-confirmar="¿Dar de baja a este usuario? Deja de poder ingresar; el histórico se conserva."'
+                                          : '' ?>>
+                                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                    <input type="hidden" name="accion" value="cambiar_estado">
+                                    <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
+                                    <button class="btn btn-ghost btn-sm w-100" type="submit">
+                                        <i class="bi bi-person-dash me-1"></i>
+                                        <?= (int) $Gar_Edicion['is_activo'] === 1 ? 'Dar de baja' : 'Reactivar usuario' ?>
+                                    </button>
+                                </form>
+                                <div class="sample-note mt-1">
+                                    La baja es lógica: deja de poder ingresar y el histórico se conserva.
+                                </div>
+                            </div>
 
-                    <?php if ($Gar_Edicion['entra_oid'] !== null
-                              && (int) $Gar_Edicion['usuario_id'] !== (int) $Gar_Usuario['usuario_id']): ?>
-                        <form method="post" action="/admin/usuarios.php"
-                              onsubmit="return confirm('¿Desvincular la identidad de Entra de este usuario?');">
-                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                            <input type="hidden" name="accion" value="desvincular">
-                            <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
-                            <button class="btn btn-ghost btn-sm w-100" type="submit">
-                                <i class="bi bi-link-45deg me-1"></i>Desvincular identidad de Entra
-                            </button>
-                        </form>
-                        <div class="sample-note mt-1">
-                            Se vuelve a enlazar por correo en el próximo ingreso. Sirve cuando la
-                            cuenta corporativa se recreó.
+                            <?php if ($Gar_Edicion['entra_oid'] !== null): ?>
+                                <div>
+                                    <form method="post" action="/admin/usuarios.php"
+                                          data-confirmar="¿Desvincular la identidad de Entra de este usuario?">
+                                        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                        <input type="hidden" name="accion" value="desvincular">
+                                        <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
+                                        <button class="btn btn-ghost btn-sm w-100" type="submit">
+                                            <i class="bi bi-link-45deg me-1"></i>Desvincular identidad de Entra
+                                        </button>
+                                    </form>
+                                    <div class="sample-note mt-1">
+                                        Se vuelve a enlazar por correo en el próximo ingreso. Sirve cuando la
+                                        cuenta corporativa se recreó.
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
                 </div>
             <?php else: ?>
                 <div class="sample-note mt-3">
                     <i class="bi bi-upload me-1"></i>
-                    El alta masiva se hace por carga directa a ere<code>fx.usuario</code>.
+                    El alta masiva se hace por carga directa a <code>fx.usuario</code>.
                 </div>
             <?php endif; ?>
         </div>
-    </div></div>
+
+        <div class="modal-pie">
+            <a class="btn btn-ghost" href="/admin/usuarios.php">Cancelar</a>
+            <button class="btn btn-anc" type="submit" form="form-usuario">
+                <i class="bi bi-check2 me-1"></i><?= $Lb_EsNuevo ? 'Guardar autorización' : 'Guardar cambios' ?>
+            </button>
+        </div>
+    </dialog>
+<?php endif; ?>
 </div>
 
 <?php
