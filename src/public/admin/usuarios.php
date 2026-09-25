@@ -14,6 +14,7 @@
  *                        del último administrador activo.
  *             2026-09-25 Alta y edición en modal; confirmaciones sin JavaScript
  *                        en línea, que la política CSP bloquea.
+ *             2026-09-25 Contraseña local: asignar, restablecer y quitar.
  *
  * Seguridad : Requiere permiso completo sobre `usuarios`. La verificación es
  *             de servidor; el menú solo refleja el resultado.
@@ -39,6 +40,9 @@ const USUARIOS_COLUMNA_AMBITO = [
     'zona'    => 'zona_id',
     'oficina' => 'oficina_id',
 ];
+
+/** Largo mínimo de una contraseña local asignada desde esta pantalla. */
+const USUARIOS_CLAVE_MINIMO = 8;
 
 /** Convierte una selección de IDs en enteros positivos y únicos. */
 function usuarios_ids_seleccionados(mixed $Pm_Valores_i): array
@@ -135,6 +139,31 @@ function usuarios_reemplazar_roles(int $Pi_UsuarioId_i, array $Par_Roles_i, stri
             'INSERT INTO fx.usuario_rol (usuario_id, rol_id, created_by)
              VALUES (:usuario_id, :rol_id, :actor)',
             [':usuario_id' => $Pi_UsuarioId_i, ':rol_id' => $Li_RolId, ':actor' => $Pv_Actor_i]
+        );
+    }
+}
+
+/**
+ * Asigna o reemplaza la contraseña local del usuario y lo desbloquea.
+ * La clave nunca se guarda ni se registra en claro: solo su hash.
+ */
+function usuarios_asignar_clave(int $Pi_UsuarioId_i, string $Pv_Clave_i, string $Pv_Actor_i): void
+{
+    $Lv_Hash = password_hash($Pv_Clave_i, PASSWORD_DEFAULT);
+
+    $Lo_Sentencia = db_ejecutar(
+        'UPDATE fx.usuario_clave
+         SET clave_hash = :clave_hash, intentos_fallidos = 0, bloqueado_hasta = NULL,
+             actualizada_at = SYSUTCDATETIME(), actualizada_by = :actor
+         WHERE usuario_id = :usuario_id',
+        [':clave_hash' => $Lv_Hash, ':actor' => $Pv_Actor_i, ':usuario_id' => $Pi_UsuarioId_i]
+    );
+
+    if ($Lo_Sentencia->rowCount() === 0) {
+        db_ejecutar(
+            'INSERT INTO fx.usuario_clave (usuario_id, clave_hash, actualizada_by)
+             VALUES (:usuario_id, :clave_hash, :actor)',
+            [':usuario_id' => $Pi_UsuarioId_i, ':clave_hash' => $Lv_Hash, ':actor' => $Pv_Actor_i]
         );
     }
 }
@@ -242,6 +271,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $Lv_Puesto   = trim((string) ($_POST['puesto'] ?? ''));
                 $Lar_Roles   = usuarios_ids_seleccionados($_POST['roles'] ?? []);
                 $Lar_Ambitos = usuarios_ambitos_seleccionados($_POST['ambitos'] ?? []);
+                $Lv_Clave        = (string) ($_POST['clave'] ?? '');
+                $Lv_ClaveRepetir = (string) ($_POST['clave_repetir'] ?? '');
+                $Lb_QuitarClave  = ($_POST['quitar_clave'] ?? '') === '1';
 
                 // Si algo falla, el panel debe quedar abierto en el mismo usuario.
                 $Gi_Editando = $Li_Objetivo;
@@ -255,6 +287,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 usuarios_validar_seleccion($Lar_Roles, $Lar_Ambitos, $Gar_Catalogos);
+
+                if ($Lv_Clave !== '' || $Lv_ClaveRepetir !== '') {
+                    if (mb_strlen($Lv_Clave) < USUARIOS_CLAVE_MINIMO || mb_strlen($Lv_Clave) > 256) {
+                        throw new InvalidArgumentException(
+                            'La contraseña debe tener entre ' . USUARIOS_CLAVE_MINIMO . ' y 256 caracteres.'
+                        );
+                    }
+
+                    if (!hash_equals($Lv_Clave, $Lv_ClaveRepetir)) {
+                        throw new InvalidArgumentException('Las dos contraseñas no coinciden. Escribilas de nuevo.');
+                    }
+
+                    if ($Lb_QuitarClave) {
+                        throw new InvalidArgumentException('Elegí asignar una contraseña nueva o quitarla, no las dos cosas.');
+                    }
+                }
+
+                if ($Lb_QuitarClave && $Li_Objetivo === (int) $Gar_Usuario['usuario_id']) {
+                    throw new InvalidArgumentException('No podés quitar tu propia contraseña local: podrías quedarte sin acceso.');
+                }
 
                 $Lb_SeraAdministrador = usuarios_incluye_administrador($Lar_Roles, $Gar_Roles);
 
@@ -331,6 +383,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 usuarios_reemplazar_roles($Li_Objetivo, $Lar_Roles, (string) $Gar_Usuario['correo']);
                 usuarios_reemplazar_ambitos($Li_Objetivo, $Lar_Ambitos, (string) $Gar_Usuario['correo']);
 
+                if ($Lv_Clave !== '') {
+                    usuarios_asignar_clave($Li_Objetivo, $Lv_Clave, (string) $Gar_Usuario['correo']);
+                    $Lv_Detalle .= ' Contraseña local asignada.';
+                } elseif ($Lb_QuitarClave) {
+                    db_ejecutar(
+                        'DELETE FROM fx.usuario_clave WHERE usuario_id = :usuario_id',
+                        [':usuario_id' => $Li_Objetivo]
+                    );
+                    $Lv_Detalle .= ' Contraseña local quitada.';
+                }
+
                 $Lo_Conexion->commit();
 
                 audit_registrar($Lv_Evento, [
@@ -345,7 +408,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $Gi_Editando = 0;
                 $Gv_Mensaje  = $Lv_Accion === 'autorizar'
-                    ? 'Usuario autorizado. Podrá ingresar con su cuenta corporativa.'
+                    ? ($Lv_Clave !== ''
+                        ? 'Usuario autorizado. Podrá ingresar con Microsoft o con la contraseña asignada.'
+                        : 'Usuario autorizado. Podrá ingresar con su cuenta corporativa.')
                     : 'Cambios guardados. Se aplican en el próximo ingreso del usuario.';
                 $Gv_Tipo     = 'info';
             }
@@ -560,6 +625,17 @@ $Gar_Formulario = [
     'correo' => $Gb_Reenvio ? trim((string) ($_POST['correo'] ?? '')) : (string) ($Gar_Edicion['correo'] ?? ''),
     'nombre' => $Gb_Reenvio ? trim((string) ($_POST['nombre'] ?? '')) : (string) ($Gar_Edicion['nombre'] ?? ''),
     'puesto' => $Gb_Reenvio ? trim((string) ($_POST['puesto'] ?? '')) : (string) ($Gar_Edicion['puesto'] ?? ''),
+];
+
+/* Estado de la contraseña local del usuario en edición (null = no tiene). */
+$Gar_EdicionClave = $Gi_Editando > 0
+    ? db_fila(
+        'SELECT actualizada_at, actualizada_by,
+                CASE WHEN bloqueado_hasta > SYSUTCDATETIME() THEN bloqueado_hasta END AS bloqueado_hasta
+         FROM fx.usuario_clave WHERE usuario_id = :usuario_id',
+        [':usuario_id' => $Gi_Editando]
+    )
+    : null;
 ];
 
 $Gi_Activos = 0;
@@ -781,7 +857,8 @@ vista_encabezado([
                         <label class="form-label" for="correo">Correo corporativo (Entra ID)</label>
                         <input class="form-control" type="email" id="correo" name="correo"
                                value="<?= e($Gar_Formulario['correo']) ?>"
-                               placeholder="nombre.apellido@grupoanc.com" maxlength="160" required autofocus>
+                               placeholder="nombre.apellido@grupoanc.com" maxlength="160"
+                               autocomplete="off" required autofocus>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="nombre">Nombre completo</label>
@@ -825,6 +902,52 @@ vista_encabezado([
                     <div class="sample-note mt-1">
                         Se pueden combinar niveles. La región concede todos sus países activos.
                     </div>
+                </fieldset>
+
+                <fieldset class="mt-3">
+                    <legend class="form-label">Contraseña local</legend>
+                    <?php if (!$Lb_EsNuevo): ?>
+                        <div class="sample-note mb-2">
+                            <?php if ($Gar_EdicionClave === null): ?>
+                                Sin contraseña local: hoy solo puede ingresar con Microsoft.
+                            <?php else: ?>
+                                Asignada el <?= e(date('d M Y', strtotime((string) $Gar_EdicionClave['actualizada_at']))) ?><?= !empty($Gar_EdicionClave['actualizada_by']) ? ' · ' . e((string) $Gar_EdicionClave['actualizada_by']) : '' ?>.
+                                <?php if ($Gar_EdicionClave['bloqueado_hasta'] !== null): ?>
+                                    <b>Bloqueada por intentos fallidos</b>; asignar una nueva la desbloquea.
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="clave">
+                                <?= $Lb_EsNuevo || $Gar_EdicionClave === null ? 'Contraseña' : 'Nueva contraseña' ?>
+                                <span class="sample-note">(opcional)</span>
+                            </label>
+                            <input class="form-control" type="password" id="clave" name="clave"
+                                   autocomplete="new-password" minlength="<?= USUARIOS_CLAVE_MINIMO ?>" maxlength="256">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="clave_repetir">Repetir contraseña</label>
+                            <input class="form-control" type="password" id="clave_repetir" name="clave_repetir"
+                                   autocomplete="new-password" minlength="<?= USUARIOS_CLAVE_MINIMO ?>" maxlength="256">
+                        </div>
+                    </div>
+                    <div class="sample-note mt-1">
+                        Mínimo <?= USUARIOS_CLAVE_MINIMO ?> caracteres. Si la dejás vacía,
+                        <?= $Lb_EsNuevo ? 'solo podrá ingresar con Microsoft' : 'la contraseña actual no cambia' ?>.
+                    </div>
+
+                    <?php if (!$Lb_EsNuevo && $Gar_EdicionClave !== null && $Gi_Editando !== (int) $Gar_Usuario['usuario_id']): ?>
+                        <label class="chk mt-2">
+                            <input type="checkbox" name="quitar_clave" value="1">
+                            <span>
+                                Quitar la contraseña local
+                                <small class="umail d-block">Solo podrá ingresar con Microsoft.</small>
+                            </span>
+                        </label>
+                    <?php endif; ?>
                 </fieldset>
             </form>
 
