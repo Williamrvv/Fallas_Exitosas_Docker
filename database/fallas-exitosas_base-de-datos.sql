@@ -287,6 +287,29 @@ END
 GO
 
 /* ---------------------------------------------------------------------------
+   Credencial local (correo y contraseña) — alternativa a Entra ID.
+
+   Tabla aparte y SIN historial: los hashes anteriores no quedan guardados en
+   fx.usuario_historial y cada intento fallido no genera una versión nueva.
+   Sin fila en esta tabla, el usuario solo puede ingresar con Entra ID.
+   --------------------------------------------------------------------------- */
+IF OBJECT_ID('fx.usuario_clave', 'U') IS NULL
+BEGIN
+    CREATE TABLE fx.usuario_clave
+    (
+        usuario_id        INT           NOT NULL,
+        clave_hash        VARCHAR(255)  NOT NULL,   -- password_hash() de PHP
+        intentos_fallidos TINYINT       NOT NULL CONSTRAINT df_usuario_clave_intentos DEFAULT (0),
+        bloqueado_hasta   DATETIME2(0)  NULL,
+        actualizada_at    DATETIME2(0)  NOT NULL CONSTRAINT df_usuario_clave_actualizada_at DEFAULT (SYSUTCDATETIME()),
+        actualizada_by    NVARCHAR(160) NULL,
+        CONSTRAINT pk_usuario_clave PRIMARY KEY CLUSTERED (usuario_id),
+        CONSTRAINT fk_usuario_clave_usuario FOREIGN KEY (usuario_id) REFERENCES fx.usuario (usuario_id)
+    );
+END
+GO
+
+/* ---------------------------------------------------------------------------
    6. Sesiones activas y bitácora de auditoría
    --------------------------------------------------------------------------- */
 IF OBJECT_ID('fx.sesion', 'U') IS NULL

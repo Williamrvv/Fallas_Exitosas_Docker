@@ -2,10 +2,12 @@
 /**
  * Fallas Exitosas · Pantalla de ingreso.
  *
- * Propósito : Iniciar sesión con la cuenta corporativa (Microsoft Entra ID).
+ * Propósito : Iniciar sesión con correo y contraseña, o con la cuenta
+ *             corporativa (Microsoft Entra ID).
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-24
  * Bitácora  : 2026-09-24 Versión inicial.
+ *             2026-09-25 Aclaración: las credenciales se ingresan en Microsoft.
  */
 
 declare(strict_types=1);
@@ -30,6 +32,9 @@ $Gar_Avisos = [
     'no_autorizado'  => ['error', 'Tu cuenta es válida en la organización, pero todavía no está autorizada en Fallas Exitosas. Solicitá el alta al administrador.'],
     'inactivo'       => ['error', 'Tu usuario está inactivo en la plataforma. Comunicate con el administrador.'],
     'error'          => ['error', 'No se pudo completar el inicio de sesión. Intentá de nuevo; si persiste, avisá al administrador.'],
+    'credenciales'   => ['error', 'Correo o contraseña incorrectos.'],
+    'bloqueado'      => ['error', 'Demasiados intentos fallidos. Esperá 15 minutos antes de volver a intentar.'],
+];
 ];
 
 $Gv_Aviso  = (string) ($_GET['aviso'] ?? '');
@@ -67,7 +72,7 @@ $Gar_AvisoServicio = match ($Gar_Disponibilidad['motivo']) {
         <img class="logo" src="/assets/logos/anc-logo-claro.png" alt="Grupo ANC">
 
         <h1>Fallas Exitosas</h1>
-        <p class="lead-txt">Plataforma regional de Calidad de Servicio</p>
+        <p class="lead-txt">Plataforma regional de Calidad de Servicios</p>
 
         <?php if ($Gar_Aviso !== null): ?>
             <div class="alerta alerta-<?= e($Gar_Aviso[0]) ?>">
@@ -83,11 +88,31 @@ $Gar_AvisoServicio = match ($Gar_Disponibilidad['motivo']) {
             </div>
         <?php endif; ?>
 
+        <form method="post" action="/login-local.php" class="text-start mb-2">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <div class="mb-2">
+                <label for="correo" class="form-label small mb-1">Correo</label>
+                <input type="email" class="form-control" id="correo" name="correo"
+                       autocomplete="username" maxlength="160" required>
+            </div>
+            <div class="mb-3">
+                <label for="clave" class="form-label small mb-1">Contraseña</label>
+                <input type="password" class="form-control" id="clave" name="clave"
+                       autocomplete="current-password" maxlength="256" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+        </form>
+
         <?php if ($Gb_EntraLista): ?>
+            <p class="small text-muted text-center my-2">o</p>
             <a class="btn-ms" href="/login.php">
                 <i class="bi bi-microsoft"></i>
                 Iniciar sesión con Microsoft
             </a>
+            <p class="small text-muted text-center mt-2 mb-0">
+                Te llevaremos a la página de Microsoft para escribir tu correo
+                y contraseña corporativos.
+            </p>
         <?php else: ?>
             <div class="alerta alerta-info">
                 <i class="bi bi-gear"></i>

@@ -63,6 +63,8 @@ services:
       - tls_material:/var/lib/fallas-exitosas/tls
       # Los scripts se montan en solo lectura para poder cargarlos sin reconstruir.
       - ./database:/opt/fallas-exitosas/database:ro
+      # Desarrollo: el código se lee del disco, los cambios se ven al refrescar.
+      - ./src:/var/www/html:ro
     networks:
       - anc_net
     restart: unless-stopped
