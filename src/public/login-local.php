@@ -93,6 +93,7 @@ if ((int) $Gar_Usuario['is_activo'] !== 1) {
 }
 
 sesion_establecer_usuario($Gar_Usuario);
+$_SESSION['metodo_ingreso'] = 'local';
 
 audit_registrar('ingreso', [
     'usuario_id' => (int) $Gar_Usuario['usuario_id'],

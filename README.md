@@ -204,13 +204,45 @@ fallas-exitosas/
 ├─ .env.example            Plantilla de configuración
 ├─ database/               Scripts de base de datos
 ├─ docker/                 Apache, PHP, TLS y sonda de salud
+├─ frontend/               Fuente de los estilos (Tailwind CSS v4)
+│  ├─ input.css            Tokens ANC y componentes · ÚNICO archivo a editar
+│  └─ package.json         Script de compilación
 └─ src/
    ├─ app/                 Configuración, datos, OIDC, sesión, permisos
    └─ public/              Raíz web (lo único accesible desde el navegador)
+      └─ assets/app.css    CSS COMPILADO · no editar a mano
 ```
 
 Solo `src/public/` queda expuesto: el código de `src/app/` no es alcanzable
 desde el navegador.
+
+---
+
+## Estilos
+
+La interfaz usa **Tailwind CSS v4** compilado a un único archivo estático.
+No hay Bootstrap, no hay CDN y no hay tipografía de íconos: la política CSP
+de Apache es `default-src 'self'` y bloquea cualquier recurso externo. Los
+íconos son SVG en línea y Poppins se sirve desde el propio contenedor, así
+que la aplicación se dibuja completa sin salida a internet.
+
+`frontend/input.css` es la única fuente de estilos. Contiene los tokens de
+marca de Grupo ANC y los componentes (`fx-tarjeta`, `fx-kpi`, `fx-btn`,
+`fx-tabla`, `fx-modal`, …).
+
+Para cambiar algo visual:
+
+```bash
+cd frontend
+npm ci             # instala exactamente las versiones del lockfile
+npm run css        # compila a ../src/public/assets/app.css
+npm run css:dev    # recompila al guardar, mientras trabajás
+```
+
+**`src/public/assets/app.css` se regenera: no lo edites a mano.** Eso sí, hay
+que **versionarlo y dejarlo en el repositorio**, porque la imagen Docker no
+lleva Node y copia el CSS ya compilado. Si agregás clases nuevas en un `.php`
+y no volvés a compilar, esas clases no van a existir en la hoja.
 
 ---
 

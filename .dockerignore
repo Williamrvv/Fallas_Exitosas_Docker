@@ -7,3 +7,8 @@ docs/
 *.md
 .idea/
 .vscode/
+
+# Fuentes de compilacion de estilos: la imagen solo necesita el CSS ya
+# compilado en src/public/assets/app.css, no el proyecto de Tailwind.
+frontend/
+node_modules/

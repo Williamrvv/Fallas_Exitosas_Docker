@@ -1,0 +1,545 @@
+/* ============================================================================
+   Fallas Exitosas · Sistema de diseño (FUENTE)
+   ----------------------------------------------------------------------------
+   Propósito : Único origen de los estilos. Se compila a
+               src/public/assets/app.css con `npm run css`.
+   Autor     : William Valverde V.
+   Fecha     : 2026-09-25
+   Bitácora  : 2026-09-25 Reemplaza a Bootstrap 5 y a assets/styles.css.
+               Marca ANC, Poppins autoalojada e íconos SVG en línea.
+
+   NO editar src/public/assets/app.css a mano: se regenera y se pierde.
+
+   Restricción de seguridad: la CSP de Apache es `default-src 'self'`, así que
+   no se admite ningún CDN. Tailwind se compila a un archivo estático local y
+   los íconos son SVG en línea (no hay tipografía de íconos que descargar).
+   ============================================================================ */
+
+@import "tailwindcss";
+
+/* Tailwind explora estas rutas para saber qué clases conservar. */
+@source "../src/app";
+@source "../src/public";
+
+/* ----------------------------------------------------------------------------
+   1. Tokens de marca ANC (paleta cerrada: no se inventan colores)
+   -------------------------------------------------------------------------- */
+@theme {
+  --color-anc-verde-oscuro: #006937;
+  --color-anc-verde-medio:  #00945E;
+  --color-anc-azul:         #005CB9;
+  --color-anc-verde-wow:    #3AAA35;
+  --color-anc-celeste:      #38A8E0;
+  --color-anc-amarillo:     #FDC733;
+  --color-anc-naranja:      #E94E1B;
+  --color-anc-morado-inn:   #78368C;
+  --color-anc-morado-efi:   #A5125B;
+
+  /* Superficies y texto. Grises de soporte, no colores de marca. */
+  --color-lienzo:      #F8F9FA;
+  --color-superficie:  #FFFFFF;
+  --color-tinta:       #1B2733;
+  --color-apagado:     #5F6B77;
+  --color-tenue:       #66727E;
+  --color-linea:       #E7EBF0;
+  --color-linea-sutil: #EEF1F5;
+  --color-control:     #87939F;
+
+  /* Escala tipográfica declarada: 12 / 14 / 16 / 20 / 28 / 40 */
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.25rem;
+  --text-xl:   1.75rem;
+  --text-2xl:  2.5rem;
+
+  --font-sans: "Poppins", Arial, Helvetica, sans-serif;
+
+  --shadow-anc:     0 1px 2px rgba(27, 39, 51, .05), 0 10px 26px -20px rgba(27, 39, 51, .28);
+  --shadow-anc-pop: 0 18px 50px -12px rgba(27, 39, 51, .35);
+}
+
+/* ----------------------------------------------------------------------------
+   2. Poppins autoalojada: la aplicación no depende de una fuente externa
+   -------------------------------------------------------------------------- */
+@font-face{font-family:'Poppins';font-style:normal;font-weight:300;font-display:swap;src:url('/assets/fonts/poppins-latin-300.woff2') format('woff2')}
+@font-face{font-family:'Poppins';font-style:normal;font-weight:400;font-display:swap;src:url('/assets/fonts/poppins-latin-400.woff2') format('woff2')}
+@font-face{font-family:'Poppins';font-style:normal;font-weight:500;font-display:swap;src:url('/assets/fonts/poppins-latin-500.woff2') format('woff2')}
+@font-face{font-family:'Poppins';font-style:normal;font-weight:600;font-display:swap;src:url('/assets/fonts/poppins-latin-600.woff2') format('woff2')}
+@font-face{font-family:'Poppins';font-style:normal;font-weight:700;font-display:swap;src:url('/assets/fonts/poppins-latin-700.woff2') format('woff2')}
+
+/* ----------------------------------------------------------------------------
+   3. Base
+   -------------------------------------------------------------------------- */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    @apply bg-lienzo text-tinta font-sans text-sm font-normal antialiased;
+    margin: 0;
+    min-width: 320px;
+  }
+
+  button,
+  input,
+  select,
+  textarea { font: inherit; }
+
+  h1, h2, h3, h4 { @apply m-0 font-semibold; }
+
+  /* Foco visible en todo elemento accionable: requisito de accesibilidad. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 3px solid #005CB9;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Números alineados en columnas: indicadores y tablas. */
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  /* Tamaño por defecto de los íconos en línea: sin esto un <svg> sin alto ni
+     ancho se dibuja a 300×150 y rompe la fila. Los componentes que necesitan
+     otro tamaño lo fijan en su propia capa, que pesa más que ésta. */
+  svg { width: 1em; height: 1em; flex: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      transition-duration: .001ms !important;
+    }
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   4. Componentes
+   -------------------------------------------------------------------------- */
+@layer components {
+
+  /* --- Cascarón de aplicación ------------------------------------------- */
+  .fx-encabezado {
+    @apply sticky top-0 z-40 bg-superficie border-b border-linea;
+  }
+  .fx-encabezado-interno {
+    @apply mx-auto flex items-center gap-4 px-6 py-3;
+    max-width: 1560px;
+    min-height: 64px;
+  }
+  .fx-marca       { @apply flex items-center gap-3 min-w-0; }
+  .fx-marca img   { @apply h-10 w-auto; }
+  .fx-marca-texto { @apply min-w-0; }
+  .fx-marca-t1    { @apply text-sm font-semibold leading-tight; }
+  .fx-marca-t2    { @apply text-xs text-apagado leading-tight; }
+  .fx-encabezado-acciones { @apply ml-auto flex min-w-0 items-center gap-4; }
+
+  /* Barra de pestañas: reemplaza al menú lateral. */
+  .fx-pestanas {
+    @apply sticky z-30 bg-superficie border-b border-linea overflow-x-auto;
+    top: 64px;
+  }
+  .fx-pestanas-interno {
+    @apply mx-auto flex items-stretch gap-1 px-6;
+    max-width: 1560px;
+    scrollbar-width: thin;
+    scrollbar-color: #C2CAD3 transparent;
+  }
+  .fx-pestana {
+    @apply relative inline-flex items-center gap-2 whitespace-nowrap px-3 py-3
+           text-sm font-medium text-apagado no-underline
+           border-b-2 border-transparent transition-colors;
+  }
+  .fx-pestana:hover { @apply text-anc-azul; }
+  .fx-pestana[aria-current="page"] {
+    @apply text-anc-azul font-semibold border-anc-azul;
+  }
+  .fx-pestana svg { @apply size-4 shrink-0; }
+  .fx-pestana-grupo {
+    @apply self-center ml-2 pl-3 border-l border-linea
+           text-[10px] font-semibold uppercase tracking-wider text-tenue;
+  }
+
+  /* En móvil, las pestañas se convierten en un menú vertical accesible. */
+  .fx-menu-movil {
+    @apply sticky z-30 hidden border-b border-linea bg-superficie;
+    top: 56px;
+  }
+  .fx-menu-movil details { @apply mx-auto; }
+  .fx-menu-movil summary {
+    @apply flex cursor-pointer list-none items-center gap-2 px-4 py-2.5
+           text-sm font-semibold text-anc-azul;
+    min-height: 48px;
+  }
+  .fx-menu-movil summary::-webkit-details-marker { display: none; }
+  .fx-menu-movil-activo { @apply flex min-w-0 items-center gap-2; }
+  .fx-menu-movil-activo svg { @apply size-4; }
+  .fx-menu-movil-rotulo {
+    @apply ml-auto text-[10px] font-semibold uppercase tracking-wider text-tenue;
+  }
+  .fx-menu-movil-flecha {
+    @apply size-2.5 border-b-2 border-r-2 border-apagado transition-transform;
+    transform: translateY(-2px) rotate(45deg);
+  }
+  .fx-menu-movil details[open] .fx-menu-movil-flecha {
+    transform: translateY(2px) rotate(225deg);
+  }
+  .fx-menu-movil nav {
+    @apply grid gap-1 overflow-y-auto border-t border-linea-sutil p-2;
+    max-height: calc(100dvh - 112px);
+  }
+  .fx-menu-movil nav a {
+    @apply flex min-h-11 items-center gap-2.5 rounded-[10px] px-3 py-2.5
+           text-sm font-medium text-apagado no-underline;
+  }
+  .fx-menu-movil nav a:hover { @apply bg-lienzo text-tinta; }
+  .fx-menu-movil nav a[aria-current="page"] {
+    @apply bg-anc-azul text-white;
+  }
+  .fx-menu-movil nav a svg { @apply size-4; }
+  .fx-menu-movil-grupo {
+    @apply px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-tenue;
+  }
+
+  .fx-lienzo {
+    @apply mx-auto px-6 pt-5 pb-10;
+    max-width: 1560px;
+  }
+  .fx-titulo-pagina {
+    @apply flex flex-wrap items-end justify-between gap-4 mb-5;
+  }
+  .fx-titulo-pagina h1 { @apply text-lg font-semibold; }
+  .fx-titulo-pagina p  { @apply mt-1 text-sm text-apagado; }
+
+  /* --- Identidad de la persona ------------------------------------------ */
+  .fx-usuario { @apply flex items-center gap-2.5; }
+  .fx-avatar {
+    @apply flex items-center justify-center rounded-full
+           bg-anc-azul text-white font-semibold shrink-0;
+    width: 38px; height: 38px; font-size: 13px;
+  }
+  .fx-usuario-nombre { @apply text-xs font-medium leading-tight; }
+  .fx-usuario-rol    { @apply text-[11px] text-apagado leading-tight; }
+
+  /* --- Distintivos de ámbito -------------------------------------------- */
+  .fx-pastilla {
+    @apply inline-flex items-center rounded-full border border-linea bg-superficie
+           px-3 py-1 text-xs font-medium text-apagado whitespace-nowrap;
+  }
+  .fx-pastilla-activa {
+    @apply text-anc-azul;
+    border-color: rgba(0, 92, 185, .30);
+    background: rgba(0, 92, 185, .10);
+  }
+
+  /* --- Botones ----------------------------------------------------------- */
+  .fx-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px]
+           px-3.5 text-sm font-medium no-underline cursor-pointer
+           border transition-colors;
+    min-height: 40px;
+  }
+  .fx-btn svg { @apply size-4 shrink-0; }
+  .fx-btn-sm  { @apply px-3 text-xs; min-height: 34px; }
+  .fx-btn-primario { @apply bg-anc-azul border-anc-azul text-white; }
+  .fx-btn-primario:hover {
+    @apply border-anc-verde-oscuro bg-anc-verde-oscuro text-white;
+  }
+  .fx-btn-neutro { @apply bg-superficie border-control text-[#48535F]; }
+  .fx-btn-neutro:hover { @apply bg-lienzo text-tinta; }
+  .fx-btn-bloque { @apply w-full; }
+  .fx-btn:disabled { @apply opacity-50 cursor-not-allowed; }
+
+  /* --- Tarjetas ---------------------------------------------------------- */
+  .fx-tarjeta {
+    @apply bg-superficie border border-linea rounded-[14px] shadow-anc;
+  }
+  .fx-tarjeta-cab {
+    @apply flex flex-wrap items-center justify-between gap-3
+           px-5 py-4 border-b border-linea-sutil;
+  }
+  .fx-tarjeta-cab h2   { @apply text-sm font-semibold; }
+  .fx-tarjeta-cab .sub { @apply text-xs text-apagado mt-0.5; }
+  .fx-tarjeta-cuerpo   { @apply p-5; }
+
+  /* --- Indicadores (elemento firma: riel de color a la izquierda) -------- */
+  .fx-kpi {
+    @apply relative bg-superficie border border-linea rounded-[14px] shadow-anc
+           overflow-hidden flex items-center gap-3.5 px-5 py-4;
+  }
+  /* El riel toma el color del tinte del ícono, así la plantilla solo declara
+     el tinte una vez y no puede quedar descoordinado. */
+  .fx-kpi::before {
+    content: "";
+    @apply absolute left-0 top-0 bottom-0;
+    width: 3px;
+    background: #005CB9;
+  }
+  .fx-kpi:has(.fx-tinte-verde)::before   { background: #00945E; }
+  .fx-kpi:has(.fx-tinte-morado)::before  { background: #78368C; }
+  .fx-kpi:has(.fx-tinte-celeste)::before { background: #38A8E0; }
+
+  .fx-kpi-icono {
+    @apply flex items-center justify-center rounded-[11px] shrink-0;
+    width: 42px; height: 42px;
+  }
+  .fx-kpi-icono svg { width: 20px; height: 20px; }
+  .fx-kpi-valor { @apply text-lg font-semibold leading-none; }
+  .fx-kpi-texto { @apply text-xs text-apagado mt-1.5; }
+
+  /* Solo se aplican al recuadro del ícono, nunca a la tarjeta completa. */
+  .fx-tinte-azul    { background: rgba(0, 92, 185, .12);   color: #005CB9; }
+  .fx-tinte-verde   { background: rgba(0, 148, 94, .12);   color: #006937; }
+  .fx-tinte-morado  { background: rgba(120, 54, 140, .12); color: #78368C; }
+  .fx-tinte-celeste { background: rgba(56, 168, 224, .15); color: #005CB9; }
+
+  /* --- Aviso destacado ---------------------------------------------------- */
+  .fx-aviso {
+    @apply flex items-start gap-3.5 rounded-[14px] px-5 py-4 border;
+    border-color: rgba(0, 92, 185, .16);
+    background: rgba(0, 92, 185, .06);
+  }
+  .fx-aviso-icono {
+    @apply flex items-center justify-center rounded-[10px] shrink-0
+           bg-superficie border border-linea text-anc-azul;
+    width: 40px; height: 40px;
+  }
+  .fx-aviso-icono svg { @apply size-5; }
+  .fx-aviso-texto   { @apply text-xs leading-relaxed text-[#3A4550]; }
+  .fx-aviso-texto b { @apply text-anc-verde-oscuro font-semibold; }
+
+  /* --- Alertas en línea ---------------------------------------------------- */
+  .fx-alerta {
+    @apply flex items-start gap-2.5 rounded-[10px] border px-3.5 py-3 text-xs;
+  }
+  .fx-alerta svg { @apply size-4 shrink-0; margin-top: 1px; }
+  .fx-alerta-info {
+    color: #005CB9;
+    border-color: rgba(0, 92, 185, .20);
+    background: rgba(0, 92, 185, .08);
+  }
+  .fx-alerta-error {
+    color: #3A4550;
+    border-color: rgba(233, 78, 27, .25);
+    background: rgba(233, 78, 27, .09);
+  }
+  .fx-alerta-error svg { @apply text-anc-naranja; }
+  .fx-alerta-ok {
+    color: #006937;
+    border-color: rgba(0, 148, 94, .25);
+    background: rgba(0, 148, 94, .10);
+  }
+
+  /* --- Tablas ------------------------------------------------------------- */
+  .fx-tabla-envoltura {
+    @apply overflow-auto;
+    max-height: min(620px, 70vh);
+  }
+  .fx-tabla {
+    @apply w-full border-separate border-spacing-0 text-xs;
+    min-width: 860px;
+  }
+  .fx-tabla th {
+    @apply sticky top-0 z-10 bg-[#FCFDFE] text-left align-middle
+           px-3.5 py-3 border-b border-linea
+           text-[10px] font-semibold uppercase tracking-wide text-tenue;
+  }
+  .fx-tabla td { @apply px-3.5 py-3 align-middle border-b border-linea-sutil; }
+  .fx-tabla tbody tr:last-child td { @apply border-b-0; }
+  .fx-tabla tbody tr:hover td { @apply bg-lienzo; }
+  .fx-fila-activa td { background: rgba(0, 92, 185, .05); }
+  .fx-fila-activa td:first-child { box-shadow: inset 3px 0 0 #005CB9; }
+
+  .fx-nombre     { @apply font-medium text-tinta; }
+  .fx-secundario { @apply text-[11px] text-apagado; }
+  .fx-ficha      { @apply block no-underline text-inherit; }
+  .fx-ficha:hover .fx-nombre { @apply text-anc-azul; }
+
+  /* --- Distintivos de rol, ámbito y estado -------------------------------- */
+  .fx-grupo-tags { @apply inline-flex flex-wrap items-center gap-1; }
+  .fx-rol {
+    @apply inline-flex rounded-full px-2.5 py-0.5
+           text-[11px] font-semibold whitespace-nowrap;
+  }
+  .fx-rol-administrador       { background: rgba(0, 92, 185, .12);   color: #005CB9; }
+  .fx-rol-gerente_regional    { background: rgba(120, 54, 140, .12); color: #78368C; }
+  .fx-rol-operaciones         { background: rgba(0, 148, 94, .12);   color: #006937; }
+  .fx-rol-experiencia_cliente { background: rgba(56, 168, 224, .16); color: #005CB9; }
+  .fx-rol-consulta            { background: #EEF1F5;                 color: #5B6672; }
+
+  .fx-ambito {
+    @apply inline-flex rounded-md border border-linea bg-lienzo px-1.5 py-0.5
+           text-[10px] font-semibold text-[#48535F];
+  }
+  .fx-ambito-todo {
+    @apply text-anc-azul;
+    border-color: rgba(0, 92, 185, .25);
+    background: rgba(0, 92, 185, .10);
+  }
+
+  .fx-estado { @apply inline-flex items-center gap-1.5 text-[11px] font-semibold; }
+  .fx-estado::before { content: ""; @apply size-2 rounded-full; }
+  .fx-estado-activo { color: #006937; }
+  .fx-estado-activo::before { background: #00945E; }
+  .fx-estado-inactivo { @apply text-tenue; }
+  .fx-estado-inactivo::before { background: #C2CAD3; }
+
+  /* --- Formularios --------------------------------------------------------- */
+  .fx-etiqueta { @apply block text-xs font-medium text-tinta mb-1.5; }
+  .fx-campo {
+    @apply block w-full rounded-[10px] border border-control bg-superficie
+           px-3.5 text-sm text-tinta;
+    min-height: 42px;
+  }
+  .fx-campo::placeholder { @apply text-tenue; }
+  .fx-campo:focus {
+    @apply border-anc-azul outline-none;
+    box-shadow: 0 0 0 3px rgba(0, 92, 185, .15);
+  }
+  .fx-nota { @apply text-[11px] text-tenue; }
+
+  .fx-fieldset { @apply m-0 p-0 border-0; }
+  .fx-fieldset legend { @apply text-xs font-semibold text-tinta mb-2 p-0; }
+  .fx-subtitulo-grupo {
+    @apply text-[10px] font-semibold uppercase tracking-wide text-tenue my-0.5;
+  }
+
+  /* Casilla como tarjeta seleccionable. */
+  .fx-casilla {
+    @apply flex items-start gap-2.5 m-0 cursor-pointer rounded-[10px]
+           border border-linea bg-superficie px-3 py-2.5
+           text-xs font-medium leading-snug transition-colors;
+  }
+  .fx-casilla:hover { @apply bg-lienzo; }
+  .fx-casilla:has(input:checked) {
+    border-color: rgba(0, 92, 185, .45);
+    background: rgba(0, 92, 185, .05);
+  }
+  .fx-casilla input {
+    @apply size-4 shrink-0 cursor-pointer;
+    margin-top: 1px;
+    accent-color: #005CB9;
+  }
+
+  /* --- Diálogo modal -------------------------------------------------------- */
+  .fx-modal {
+    @apply p-0 border-0 rounded-[14px] bg-superficie text-tinta overflow-hidden;
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    box-shadow: var(--shadow-anc-pop), 0 0 0 100vmax rgba(27, 39, 51, .45);
+  }
+  .fx-modal[open] {
+    @apply fixed inset-0 m-auto z-50 flex flex-col;
+    height: fit-content;
+  }
+  .fx-modal:modal { box-shadow: var(--shadow-anc-pop); }
+  .fx-modal::backdrop { background: rgba(27, 39, 51, .45); }
+  body:has(.fx-modal[open]) { @apply overflow-hidden; }
+
+  .fx-modal-cab {
+    @apply flex items-start justify-between gap-4 px-6 py-4 border-b border-linea-sutil;
+  }
+  .fx-modal-cab h2   { @apply text-base font-semibold; }
+  .fx-modal-cab .sub { @apply text-xs text-apagado mt-0.5; }
+  .fx-modal-cerrar {
+    @apply flex items-center justify-center shrink-0 rounded-[10px]
+           text-[#48535F] no-underline;
+    width: 34px; height: 34px;
+  }
+  .fx-modal-cerrar:hover { @apply bg-lienzo text-tinta; }
+  .fx-modal-cerrar svg   { @apply size-4; }
+  .fx-modal-cuerpo { @apply flex-1 min-h-0 overflow-y-auto px-6 py-5; }
+  .fx-modal-pie {
+    @apply flex justify-end gap-2 px-6 py-3.5
+           border-t border-linea-sutil bg-[#FCFDFE];
+  }
+
+  /* --- Estado vacío ---------------------------------------------------------- */
+  .fx-vacio { @apply text-center text-sm text-apagado px-5 py-12; }
+  .fx-vacio svg { @apply mx-auto mb-3 size-8 text-[#C2CAD3]; }
+
+  /* --- Ingreso ---------------------------------------------------------------- */
+  .fx-ingreso {
+    @apply min-h-screen flex items-center justify-center p-6;
+    background: linear-gradient(135deg, #006937, #005CB9);
+  }
+  .fx-ingreso-tarjeta {
+    @apply relative w-full overflow-hidden border border-white/40 bg-superficie rounded-[18px] px-9 py-10;
+    max-width: 430px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+  }
+  .fx-ingreso-tarjeta::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-1 bg-anc-celeste;
+  }
+  .fx-ingreso-tarjeta img { @apply w-auto mb-6; height: 52px; }
+  .fx-ingreso-tarjeta h1  { @apply text-lg font-semibold mb-1.5; }
+  .fx-ingreso-lead        { @apply text-sm text-apagado mb-6; }
+  .fx-separador { @apply flex items-center gap-3 my-5 text-xs text-tenue; }
+  .fx-separador::before,
+  .fx-separador::after { content: ""; @apply flex-1 h-px bg-linea; }
+  .fx-ingreso-pie { @apply mt-6 text-center text-[11px] leading-relaxed text-tenue; }
+  .fx-ingreso-tarjeta code {
+    @apply rounded bg-lienzo border border-linea px-1 text-[11px];
+    padding-top: 1px; padding-bottom: 1px;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   5. Adaptaciones responsive del cascarón y componentes complejos
+   -------------------------------------------------------------------------- */
+@media (max-width: 639px) {
+  .fx-encabezado-interno {
+    @apply gap-2.5 px-4 py-2;
+    min-height: 56px;
+  }
+  .fx-marca { @apply gap-2; }
+  .fx-marca img { height: 34px; }
+  .fx-marca-texto { @apply hidden; }
+  .fx-encabezado-acciones { @apply gap-2; }
+  .fx-usuario-info { @apply hidden; }
+  .fx-avatar { width: 34px; height: 34px; font-size: 12px; }
+
+  .fx-pestanas { @apply hidden; }
+  .fx-menu-movil { @apply block; }
+
+  .fx-lienzo { @apply px-4 pt-4 pb-8; }
+  .fx-titulo-pagina { @apply items-start mb-4; }
+  .fx-titulo-pagina h1 { @apply text-base; }
+  .fx-titulo-pagina p { @apply text-xs; }
+
+  .fx-kpi { @apply px-4 py-3.5; }
+  .fx-tarjeta-cab { @apply px-4 py-3.5; }
+  .fx-tarjeta-cuerpo { @apply p-4; }
+  .fx-aviso { @apply px-4 py-3.5; }
+
+  .fx-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .fx-modal-cab { @apply px-4 py-3.5; }
+  .fx-modal-cuerpo { @apply px-4 py-4; }
+  .fx-modal-pie { @apply px-4 py-3; }
+  .fx-modal-pie .fx-btn { @apply flex-1; }
+
+  .fx-ingreso { @apply items-start p-4; }
+  .fx-ingreso-tarjeta {
+    @apply my-auto px-6 py-8;
+    max-width: 430px;
+  }
+  .fx-ingreso-tarjeta img { height: 46px; }
+  .fx-campo { font-size: 16px; }
+}
+
+@media (max-width: 420px) {
+  .fx-usuario { @apply hidden; }
+  .fx-salir-texto { @apply sr-only; }
+}
+
+@media (pointer: coarse) {
+  .fx-btn,
+  .fx-pestana,
+  .fx-modal-cerrar { min-height: 44px; }
+}

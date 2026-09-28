@@ -5,10 +5,12 @@
  * Propósito : Iniciar sesión con correo y contraseña, o con la cuenta
  *             corporativa (Microsoft Entra ID).
  * Autor     : William Valverde V.
- * Fecha     : 2026-09-24
+ * Fecha     : 2026-09-25
  * Bitácora  : 2026-09-24 Versión inicial.
- *             2026-09-25 Formulario de correo y contraseña con estilos propios;
- *                        Bootstrap local por la política CSP de Apache.
+ *             2026-09-25 Formulario de correo y contraseña con estilos propios.
+ *             2026-09-25 Rediseño visual: se retira Bootstrap y la tipografía de
+ *                        íconos; hoja única /assets/app.css e íconos SVG en
+ *                        línea. La lógica de ingreso no cambia.
  */
 
 declare(strict_types=1);
@@ -62,55 +64,53 @@ $Gar_AvisoServicio = match ($Gar_Disponibilidad['motivo']) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fallas Exitosas · Ingreso</title>
 <link rel="icon" href="/assets/logos/favicon-192.png">
-<link href="/assets/vendor/bootstrap.min.css" rel="stylesheet">
-<link href="/assets/vendor/bootstrap-icons.min.css" rel="stylesheet">
-<link href="/assets/styles.css" rel="stylesheet">
+<link href="/assets/app.css" rel="stylesheet">
 </head>
 <body>
-<div class="login-wrap">
-    <div class="login-card">
-        <img class="logo" src="/assets/logos/anc-logo-claro.png" alt="Grupo ANC">
+<div class="fx-ingreso">
+    <div class="fx-ingreso-tarjeta">
+        <img src="/assets/logos/anc-logo-claro.png" alt="Grupo ANC">
 
         <h1>Fallas Exitosas</h1>
-        <p class="lead-txt">Plataforma regional de Calidad de Servicios</p>
+        <p class="fx-ingreso-lead">Plataforma regional de Calidad de Servicios</p>
 
         <?php if ($Gar_Aviso !== null): ?>
-            <div class="alerta alerta-<?= e($Gar_Aviso[0]) ?>">
-                <i class="bi bi-<?= $Gar_Aviso[0] === 'error' ? 'exclamation-triangle' : 'info-circle' ?>"></i>
+            <div class="fx-alerta fx-alerta-<?= $Gar_Aviso[0] === 'error' ? 'error' : 'info' ?> mb-5" role="alert">
+                <?= icono($Gar_Aviso[0] === 'error' ? 'atencion' : 'informacion') ?>
                 <span><?= e($Gar_Aviso[1]) ?></span>
             </div>
         <?php endif; ?>
 
         <?php if ($Gar_AvisoServicio !== null): ?>
-            <div class="alerta alerta-error">
-                <i class="bi bi-exclamation-triangle"></i>
+            <div class="fx-alerta fx-alerta-error mb-5" role="alert">
+                <?= icono('atencion') ?>
                 <span><?= e($Gar_AvisoServicio) ?></span>
             </div>
         <?php endif; ?>
 
-        <form method="post" action="/login-local.php" class="login-form">
+        <form method="post" action="/login-local.php">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
 
-            <label for="correo" class="campo-etiqueta">Correo</label>
-            <input type="email" class="campo" id="correo" name="correo"
+            <label for="correo" class="fx-etiqueta">Correo</label>
+            <input type="email" class="fx-campo mb-4" id="correo" name="correo"
                    autocomplete="username" maxlength="160" required>
 
-            <label for="clave" class="campo-etiqueta">Contraseña</label>
-            <input type="password" class="campo" id="clave" name="clave"
+            <label for="clave" class="fx-etiqueta">Contraseña</label>
+            <input type="password" class="fx-campo mb-5" id="clave" name="clave"
                    autocomplete="current-password" maxlength="256" required>
 
-            <button type="submit" class="btn-ingresar">Ingresar</button>
+            <button type="submit" class="fx-btn fx-btn-primario fx-btn-bloque">Ingresar</button>
         </form>
 
         <?php if ($Gb_EntraLista): ?>
-            <div class="separador"><span>o</span></div>
-            <a class="btn-ms btn-ms-secundario" href="/login.php">
-                <i class="bi bi-microsoft"></i>
+            <div class="fx-separador"><span>o</span></div>
+            <a class="fx-btn fx-btn-neutro fx-btn-bloque" href="/login.php">
+                <?= icono('escudo') ?>
                 Iniciar sesión con Microsoft
             </a>
         <?php else: ?>
-            <div class="alerta alerta-info">
-                <i class="bi bi-gear"></i>
+            <div class="fx-alerta fx-alerta-info mt-5">
+                <?= icono('ajustes') ?>
                 <span>
                     Falta registrar la aplicación en Entra ID. Completá
                     <code>O365_CLIENT_ID</code> y <code>O365_CLIENT_SECRET</code>
@@ -119,10 +119,10 @@ $Gar_AvisoServicio = match ($Gar_Disponibilidad['motivo']) {
             </div>
         <?php endif; ?>
 
-        <div class="login-foot">
+        <p class="fx-ingreso-pie">
             El acceso se concede únicamente a personas autorizadas en la plataforma.<br>
             Grupo ANC · Costa Rica · Guatemala · Nicaragua · Perú
-        </div>
+        </p>
     </div>
 </div>
 </body>

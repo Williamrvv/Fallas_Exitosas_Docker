@@ -15,6 +15,8 @@
  *             2026-09-25 Alta y edición en modal; confirmaciones sin JavaScript
  *                        en línea, que la política CSP bloquea.
  *             2026-09-25 Contraseña local: asignar, restablecer y quitar.
+ *             2026-09-25 El modal asigna ámbito por país; la región existente se
+ *                        muestra y se guarda como sus países activos.
  *
  * Seguridad : Requiere permiso completo sobre `usuarios`. La verificación es
  *             de servidor; el menú solo refleja el resultado.
@@ -627,6 +629,25 @@ $Gar_Formulario = [
     'puesto' => $Gb_Reenvio ? trim((string) ($_POST['puesto'] ?? '')) : (string) ($Gar_Edicion['puesto'] ?? ''),
 ];
 
+/* El modal ya no ofrece el ámbito de región: quien lo tenga se muestra con los
+   países activos que esa región le concede, y al guardar queda asignado por país. */
+if ($Gi_Editando > 0 && !$Gb_Reenvio) {
+    foreach (db_filas(
+        "SELECT p.pais_id
+         FROM fx.usuario_ambito AS ua
+             INNER JOIN fx.pais AS p ON p.region_id = ua.region_id AND p.is_activo = 1
+         WHERE ua.usuario_id = :usuario_id AND ua.nivel_ambito = 'region'",
+        [':usuario_id' => $Gi_Editando]
+    ) as $Lar_Fila) {
+        $Gar_EdicionAmbitos[] = 'pais:' . (int) $Lar_Fila['pais_id'];
+    }
+
+    $Gar_EdicionAmbitos = array_values(array_unique(array_filter(
+        $Gar_EdicionAmbitos,
+        static fn (string $Lv_Clave): bool => !str_starts_with($Lv_Clave, 'region:')
+    )));
+}
+
 /* Estado de la contraseña local del usuario en edición (null = no tiene). */
 $Gar_EdicionClave = $Gi_Editando > 0
     ? db_fila(
@@ -636,7 +657,6 @@ $Gar_EdicionClave = $Gi_Editando > 0
         [':usuario_id' => $Gi_Editando]
     )
     : null;
-];
 
 $Gi_Activos = 0;
 foreach ($Gar_Usuarios as $Lar_Fila) {
@@ -656,16 +676,18 @@ function usuarios_casillas_ambito(array $Par_Items_i, string $Pv_Nivel_i, string
         return;
     }
     ?>
-    <div class="chk-group">
-        <div class="chk-title"><?= e($Pv_Titulo_i) ?></div>
-        <?php foreach ($Par_Items_i as $Lar_Item): ?>
-            <?php $Lv_Clave = $Pv_Nivel_i . ':' . (int) $Lar_Item['id']; ?>
-            <label class="chk">
-                <input type="checkbox" name="ambitos[]" value="<?= e($Lv_Clave) ?>"
-                       <?= in_array($Lv_Clave, $Par_Marcados_i, true) ? 'checked' : '' ?>>
-                <span><?= e($Lar_Item['nombre']) ?><?= isset($Lar_Item['codigo']) ? ' · ' . e((string) $Lar_Item['codigo']) : '' ?></span>
-            </label>
-        <?php endforeach; ?>
+    <div class="mt-2 first:mt-0">
+        <div class="fx-subtitulo-grupo mb-1.5"><?= e($Pv_Titulo_i) ?></div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+            <?php foreach ($Par_Items_i as $Lar_Item): ?>
+                <?php $Lv_Clave = $Pv_Nivel_i . ':' . (int) $Lar_Item['id']; ?>
+                <label class="fx-casilla">
+                    <input type="checkbox" name="ambitos[]" value="<?= e($Lv_Clave) ?>"
+                           <?= in_array($Lv_Clave, $Par_Marcados_i, true) ? 'checked' : '' ?>>
+                    <span><?= e($Lar_Item['nombre']) ?><?= isset($Lar_Item['codigo']) ? ' · ' . e((string) $Lar_Item['codigo']) : '' ?></span>
+                </label>
+            <?php endforeach; ?>
+        </div>
     </div>
     <?php
 }
@@ -679,55 +701,58 @@ vista_encabezado([
 ?>
 
 <?php if ($Gv_Mensaje !== '' && !$Gb_ModalAbierto): ?>
-    <div class="alerta alerta-<?= e($Gv_Tipo) ?>" role="alert">
-        <i class="bi bi-<?= $Gv_Tipo === 'error' ? 'exclamation-triangle' : 'check-circle' ?>"></i>
+    <div class="fx-alerta fx-alerta-<?= $Gv_Tipo === 'error' ? 'error' : 'ok' ?> mb-4" role="alert">
+        <?= icono($Gv_Tipo === 'error' ? 'atencion' : 'correcto') ?>
         <span><?= e($Gv_Mensaje) ?></span>
     </div>
 <?php endif; ?>
 
-<div class="row g-3">
-    <div class="col-6 col-xl-3"><div class="card-anc"><div class="mini">
-        <div class="mini-ic tint-blue"><i class="bi bi-people-fill"></i></div>
-        <div><div class="mini-val tnum"><?= count($Gar_Usuarios) ?></div><div class="mini-lab">Usuarios autorizados</div></div>
-    </div></div></div>
-    <div class="col-6 col-xl-3"><div class="card-anc"><div class="mini">
-        <div class="mini-ic tint-green"><i class="bi bi-person-check-fill"></i></div>
-        <div><div class="mini-val tnum"><?= $Gi_Activos ?></div><div class="mini-lab">Activos</div></div>
-    </div></div></div>
-    <div class="col-6 col-xl-3"><div class="card-anc"><div class="mini">
-        <div class="mini-ic tint-purple"><i class="bi bi-shield-lock-fill"></i></div>
-        <div><div class="mini-val tnum"><?= count($Gar_Roles) ?></div><div class="mini-lab">Roles definidos</div></div>
-    </div></div></div>
-    <div class="col-6 col-xl-3"><div class="card-anc"><div class="mini">
-        <div class="mini-ic tint-cel"><i class="bi bi-geo-alt-fill"></i></div>
-        <div><div class="mini-val tnum">4</div><div class="mini-lab">Niveles de ámbito</div></div>
-    </div></div></div>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="fx-kpi">
+        <div class="fx-kpi-icono fx-tinte-azul"><?= icono('usuarios') ?></div>
+        <div><div class="fx-kpi-valor tnum text-tinta"><?= count($Gar_Usuarios) ?></div><div class="fx-kpi-texto">Usuarios autorizados</div></div>
+    </div>
+    <div class="fx-kpi">
+        <div class="fx-kpi-icono fx-tinte-verde"><?= icono('correcto') ?></div>
+        <div><div class="fx-kpi-valor tnum text-tinta"><?= $Gi_Activos ?></div><div class="fx-kpi-texto">Activos</div></div>
+    </div>
+    <div class="fx-kpi">
+        <div class="fx-kpi-icono fx-tinte-morado"><?= icono('rol') ?></div>
+        <div><div class="fx-kpi-valor tnum text-tinta"><?= count($Gar_Roles) ?></div><div class="fx-kpi-texto">Roles definidos</div></div>
+    </div>
+    <div class="fx-kpi">
+        <div class="fx-kpi-icono fx-tinte-celeste"><?= icono('pais') ?></div>
+        <div><div class="fx-kpi-valor tnum text-tinta">4</div><div class="fx-kpi-texto">Niveles de ámbito</div></div>
+    </div>
 </div>
 
-<div class="callout mt-3">
-    <div class="ic"><i class="bi bi-shield-check"></i></div>
-    <div class="t">
+<div class="fx-aviso mt-4">
+    <div class="fx-aviso-icono"><?= icono('escudo') ?></div>
+    <p class="fx-aviso-texto m-0">
         <b>Entra ID autentica · SQL Server autoriza.</b>
         Cada persona inicia sesión con su cuenta corporativa; el acceso se concede solo si está
         autorizada aquí. El enlace es por identidad inmutable de Entra, no por el correo.
         Al desactivar, se conserva el histórico.
-    </div>
+    </p>
 </div>
 
-<div class="row g-3 mt-1">
-    <div class="col-12"><div class="card-anc">
-        <div class="ch">
+<div class="fx-tarjeta mt-4">
+        <div class="fx-tarjeta-cab">
             <div><h2>Usuarios</h2><div class="sub">Rol y ámbito efectivo</div></div>
-            <a class="btn btn-anc btn-sm" href="/admin/usuarios.php?nuevo=1">
-                <i class="bi bi-plus-lg me-1"></i>Nuevo usuario
+            <a class="fx-btn fx-btn-primario fx-btn-sm" href="/admin/usuarios.php?nuevo=1">
+                <?= icono('agregar') ?>Nuevo usuario
             </a>
         </div>
-        <div class="cb">
-            <table class="tbl">
+        <div class="fx-tabla-envoltura" tabindex="0" role="region"
+             aria-label="Usuarios autorizados">
+            <table class="fx-tabla">
+                <caption class="sr-only">
+                    Usuarios autorizados, sus roles, ámbitos, estado, último ingreso y acciones disponibles.
+                </caption>
                 <thead>
                     <tr>
-                        <th>Usuario</th><th>Rol</th><th>Ámbito</th>
-                        <th>Estado</th><th>Último ingreso</th><th class="text-end">Acciones</th>
+                        <th scope="col">Usuario</th><th scope="col">Rol</th><th scope="col">Ámbito</th>
+                        <th scope="col">Estado</th><th scope="col">Último ingreso</th><th scope="col" class="text-right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -738,69 +763,72 @@ vista_encabezado([
                     $Lar_Codigos  = array_values(array_filter(explode(',', (string) $Lar_Fila['roles_codigos'])));
                     $Lar_Nombres  = array_values(array_filter(explode(', ', (string) $Lar_Fila['roles'])));
                     ?>
-                    <tr<?= $Lb_EnEdicion ? ' class="fila-edicion"' : '' ?>>
+                    <tr<?= $Lb_EnEdicion ? ' class="fx-fila-activa"' : '' ?>>
                         <td>
                             <!-- Toda la ficha es un enlace: abre el detalle sin depender de JavaScript. -->
-                            <a class="ficha" href="/admin/usuarios.php?editar=<?= (int) $Lar_Fila['usuario_id'] ?>">
-                                <div class="uname">
+                            <a class="fx-ficha" href="/admin/usuarios.php?editar=<?= (int) $Lar_Fila['usuario_id'] ?>">
+                                <div class="fx-nombre">
                                     <?= e($Lar_Fila['nombre']) ?>
-                                    <?php if ($Lb_EsPropio): ?><span class="sc ms-1">vos</span><?php endif; ?>
+                                    <?php if ($Lb_EsPropio): ?><span class="fx-ambito ml-1">vos</span><?php endif; ?>
                                 </div>
-                                <div class="umail"><?= e($Lar_Fila['correo']) ?></div>
+                                <div class="fx-secundario"><?= e($Lar_Fila['correo']) ?></div>
                                 <?php if (!empty($Lar_Fila['puesto'])): ?>
-                                    <div class="umail"><?= e($Lar_Fila['puesto']) ?></div>
+                                    <div class="fx-secundario"><?= e($Lar_Fila['puesto']) ?></div>
                                 <?php endif; ?>
                             </a>
                         </td>
                         <td>
-                            <span class="scope">
+                            <span class="fx-grupo-tags">
                             <?php if ($Lar_Nombres === []): ?>
-                                <span class="umail">Sin rol</span>
+                                <span class="fx-secundario">Sin rol</span>
                             <?php else: ?>
                                 <?php foreach ($Lar_Nombres as $Li_Indice => $Lv_NombreRol): ?>
-                                    <span class="role-tag r-<?= e($Lar_Codigos[$Li_Indice] ?? 'consulta') ?>"><?= e($Lv_NombreRol) ?></span>
+                                    <span class="fx-rol fx-rol-<?= e($Lar_Codigos[$Li_Indice] ?? 'consulta') ?>"><?= e($Lv_NombreRol) ?></span>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                             </span>
                         </td>
                         <td>
-                            <span class="scope">
+                            <span class="fx-grupo-tags">
                             <?php if ((int) $Lar_Fila['ambitos_region'] > 0): ?>
-                                <span class="sc sc-all">Regional</span>
+                                <span class="fx-ambito fx-ambito-todo">Regional</span>
                             <?php endif; ?>
                             <?php foreach (array_filter(explode(', ', (string) $Lar_Fila['paises'])) as $Lv_Pais): ?>
-                                <span class="sc"><?= e($Lv_Pais) ?></span>
+                                <span class="fx-ambito"><?= e($Lv_Pais) ?></span>
                             <?php endforeach; ?>
                             <?php if (($Lar_Fila['paises'] ?? '') === ''): ?>
-                                <span class="umail">Sin ámbito</span>
+                                <span class="fx-secundario">Sin ámbito</span>
                             <?php endif; ?>
                             </span>
                         </td>
                         <td>
                             <?php if ((int) $Lar_Fila['is_activo'] === 1): ?>
-                                <span class="st st-on"><span class="d"></span>Activo</span>
+                                <span class="fx-estado fx-estado-activo">Activo</span>
                             <?php else: ?>
-                                <span class="st st-off"><span class="d"></span>Inactivo</span>
+                                <span class="fx-estado fx-estado-inactivo">Inactivo</span>
                             <?php endif; ?>
                         </td>
-                        <td class="umail">
+                        <td class="fx-secundario">
                             <?= $Lar_Fila['ultimo_ingreso_at'] !== null
                                 ? e(date('d M Y, H:i', strtotime((string) $Lar_Fila['ultimo_ingreso_at'])))
                                 : ($Lar_Fila['entra_oid'] === null ? 'Sin primer ingreso' : '—') ?>
                         </td>
-                        <td class="text-end">
-                            <div class="acciones">
-                                <a class="btn btn-ghost btn-sm"
+                        <td class="text-right">
+                            <div class="inline-flex flex-wrap justify-end gap-1.5">
+                                <a class="fx-btn fx-btn-neutro fx-btn-sm"
                                    href="/admin/usuarios.php?editar=<?= (int) $Lar_Fila['usuario_id'] ?>"
                                    aria-label="Editar a <?= e($Lar_Fila['nombre']) ?>">
-                                    <i class="bi bi-pencil me-1"></i>Editar
+                                    <?= icono('editar') ?>Editar
                                 </a>
                                 <?php if (!$Lb_EsPropio): ?>
-                                    <form method="post" action="/admin/usuarios.php" class="d-inline">
+                                    <form method="post" action="/admin/usuarios.php" class="inline"
+                                          <?= (int) $Lar_Fila['is_activo'] === 1
+                                              ? 'data-confirmar="¿Desactivar a ' . e($Lar_Fila['nombre']) . '? Deja de poder ingresar; el histórico se conserva."'
+                                              : '' ?>>
                                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                         <input type="hidden" name="accion" value="cambiar_estado">
                                         <input type="hidden" name="usuario_id" value="<?= (int) $Lar_Fila['usuario_id'] ?>">
-                                        <button class="btn btn-ghost btn-sm" type="submit"
+                                        <button class="fx-btn fx-btn-neutro fx-btn-sm" type="submit"
                                                 aria-label="<?= (int) $Lar_Fila['is_activo'] === 1 ? 'Desactivar' : 'Activar' ?> a <?= e($Lar_Fila['nombre']) ?>">
                                             <?= (int) $Lar_Fila['is_activo'] === 1 ? 'Desactivar' : 'Activar' ?>
                                         </button>
@@ -811,36 +839,34 @@ vista_encabezado([
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($Gar_Usuarios === []): ?>
-                    <tr><td colspan="6" class="vacio">
-                        <i class="bi bi-people"></i>
+                    <tr><td colspan="6" class="fx-vacio">
+                        <?= icono('sin-usuarios') ?>
                         Todavía no hay usuarios autorizados.
                     </td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
         </div>
-    </div></div>
-
 </div>
 
 <?php if ($Gb_ModalAbierto): ?>
     <?php $Lb_EsNuevo = $Gi_Editando === 0; ?>
-    <dialog class="modal-anc" open aria-labelledby="modal-usuario-titulo"
+    <dialog class="fx-modal" open aria-labelledby="modal-usuario-titulo"
             data-modal data-cerrar="/admin/usuarios.php">
-        <div class="modal-cab">
+        <div class="fx-modal-cab">
             <div>
                 <h2 id="modal-usuario-titulo"><?= $Lb_EsNuevo ? 'Autorizar usuario' : 'Editar usuario' ?></h2>
                 <div class="sub"><?= $Lb_EsNuevo ? 'Alta individual' : e((string) $Gar_Edicion['correo']) ?></div>
             </div>
-            <a class="modal-x" href="/admin/usuarios.php" aria-label="Cerrar sin guardar">
-                <i class="bi bi-x-lg"></i>
+            <a class="fx-modal-cerrar" href="/admin/usuarios.php" aria-label="Cerrar sin guardar">
+                <?= icono('cerrar') ?>
             </a>
         </div>
 
-        <div class="modal-cuerpo">
+        <div class="fx-modal-cuerpo">
             <?php if ($Gv_Mensaje !== ''): ?>
-                <div class="alerta alerta-<?= e($Gv_Tipo) ?>" role="alert">
-                    <i class="bi bi-<?= $Gv_Tipo === 'error' ? 'exclamation-triangle' : 'check-circle' ?>"></i>
+                <div class="fx-alerta fx-alerta-<?= $Gv_Tipo === 'error' ? 'error' : 'ok' ?> mb-4" role="alert">
+                    <?= icono($Gv_Tipo === 'error' ? 'atencion' : 'correcto') ?>
                     <span><?= e($Gv_Mensaje) ?></span>
                 </div>
             <?php endif; ?>
@@ -852,62 +878,63 @@ vista_encabezado([
                     <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
                 <?php endif; ?>
 
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label" for="correo">Correo corporativo (Entra ID)</label>
-                        <input class="form-control" type="email" id="correo" name="correo"
+                <div class="grid md:grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <label class="fx-etiqueta" for="correo">Correo corporativo (Entra ID)</label>
+                        <input class="fx-campo" type="email" id="correo" name="correo"
                                value="<?= e($Gar_Formulario['correo']) ?>"
                                placeholder="nombre.apellido@grupoanc.com" maxlength="160"
                                autocomplete="off" required autofocus>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="nombre">Nombre completo</label>
-                        <input class="form-control" type="text" id="nombre" name="nombre"
-                               value="<?= e($Gar_Formulario['nombre']) ?>" maxlength="160" required>
+                    <div>
+                        <label class="fx-etiqueta" for="nombre">Nombre completo</label>
+                        <input class="fx-campo" type="text" id="nombre" name="nombre"
+                               value="<?= e($Gar_Formulario['nombre']) ?>" maxlength="160"
+                               autocomplete="off" required>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="puesto">Puesto <span class="sample-note">(opcional)</span></label>
-                        <input class="form-control" type="text" id="puesto" name="puesto"
-                               value="<?= e($Gar_Formulario['puesto']) ?>" maxlength="120">
+                    <div>
+                        <label class="fx-etiqueta" for="puesto">Puesto <span class="fx-nota">(opcional)</span></label>
+                        <input class="fx-campo" type="text" id="puesto" name="puesto"
+                               value="<?= e($Gar_Formulario['puesto']) ?>" maxlength="120"
+                               autocomplete="off">
                     </div>
                 </div>
 
-                <fieldset class="mb-3">
-                    <legend class="form-label">Roles funcionales</legend>
-                    <div class="chk-list chk-list-2">
+                <fieldset class="fx-fieldset mb-5">
+                    <legend>Roles funcionales</legend>
+                    <div class="grid sm:grid-cols-2 gap-1.5">
                         <?php foreach ($Gar_Roles as $Lar_Rol): ?>
-                            <label class="chk">
+                            <label class="fx-casilla">
                                 <input type="checkbox" name="roles[]" value="<?= (int) $Lar_Rol['rol_id'] ?>"
                                        <?= in_array((int) $Lar_Rol['rol_id'], $Gar_EdicionRoles, true) ? 'checked' : '' ?>>
                                 <span>
                                     <?= e($Lar_Rol['nombre']) ?>
-                                    <small class="umail d-block"><?= e((string) ($Lar_Rol['descripcion'] ?? '')) ?></small>
+                                    <small class="fx-secundario block font-normal mt-0.5"><?= e((string) ($Lar_Rol['descripcion'] ?? '')) ?></small>
                                 </span>
                             </label>
                         <?php endforeach; ?>
                     </div>
-                    <div class="sample-note mt-1">Se puede asignar más de un rol; los permisos se suman.</div>
+                    <p class="fx-nota mt-1.5 mb-0">Se puede asignar más de un rol; los permisos se suman.</p>
                 </fieldset>
 
-                <fieldset>
-                    <legend class="form-label">Ámbito geográfico</legend>
-                    <div class="chk-list">
+                <fieldset class="fx-fieldset">
+                    <legend>Ámbito geográfico</legend>
+                    <div>
                         <?php
-                        usuarios_casillas_ambito($Gar_Regiones, 'region',  'Región (todos los países)', $Gar_EdicionAmbitos);
                         usuarios_casillas_ambito($Gar_Paises,   'pais',    'País',                      $Gar_EdicionAmbitos);
                         usuarios_casillas_ambito($Gar_Zonas,    'zona',    'Zona',                      $Gar_EdicionAmbitos);
                         usuarios_casillas_ambito($Gar_Oficinas, 'oficina', 'Oficina',                   $Gar_EdicionAmbitos);
                         ?>
                     </div>
-                    <div class="sample-note mt-1">
-                        Se pueden combinar niveles. La región concede todos sus países activos.
-                    </div>
+                    <p class="fx-nota mt-1.5 mb-0">
+                        Se pueden combinar niveles. Marcá cada país al que la persona debe tener acceso.
+                    </p>
                 </fieldset>
 
-                <fieldset class="mt-3">
-                    <legend class="form-label">Contraseña local</legend>
+                <fieldset class="fx-fieldset mt-5">
+                    <legend>Contraseña local</legend>
                     <?php if (!$Lb_EsNuevo): ?>
-                        <div class="sample-note mb-2">
+                        <div class="fx-nota mb-2">
                             <?php if ($Gar_EdicionClave === null): ?>
                                 Sin contraseña local: hoy solo puede ingresar con Microsoft.
                             <?php else: ?>
@@ -919,32 +946,32 @@ vista_encabezado([
                         </div>
                     <?php endif; ?>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label" for="clave">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="fx-etiqueta" for="clave">
                                 <?= $Lb_EsNuevo || $Gar_EdicionClave === null ? 'Contraseña' : 'Nueva contraseña' ?>
-                                <span class="sample-note">(opcional)</span>
+                                <span class="fx-nota">(opcional)</span>
                             </label>
-                            <input class="form-control" type="password" id="clave" name="clave"
+                            <input class="fx-campo" type="password" id="clave" name="clave"
                                    autocomplete="new-password" minlength="<?= USUARIOS_CLAVE_MINIMO ?>" maxlength="256">
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="clave_repetir">Repetir contraseña</label>
-                            <input class="form-control" type="password" id="clave_repetir" name="clave_repetir"
+                        <div>
+                            <label class="fx-etiqueta" for="clave_repetir">Repetir contraseña</label>
+                            <input class="fx-campo" type="password" id="clave_repetir" name="clave_repetir"
                                    autocomplete="new-password" minlength="<?= USUARIOS_CLAVE_MINIMO ?>" maxlength="256">
                         </div>
                     </div>
-                    <div class="sample-note mt-1">
+                    <p class="fx-nota mt-1.5 mb-0">
                         Mínimo <?= USUARIOS_CLAVE_MINIMO ?> caracteres. Si la dejás vacía,
                         <?= $Lb_EsNuevo ? 'solo podrá ingresar con Microsoft' : 'la contraseña actual no cambia' ?>.
-                    </div>
+                    </p>
 
                     <?php if (!$Lb_EsNuevo && $Gar_EdicionClave !== null && $Gi_Editando !== (int) $Gar_Usuario['usuario_id']): ?>
-                        <label class="chk mt-2">
+                        <label class="fx-casilla mt-2">
                             <input type="checkbox" name="quitar_clave" value="1">
                             <span>
                                 Quitar la contraseña local
-                                <small class="umail d-block">Solo podrá ingresar con Microsoft.</small>
+                                <small class="fx-secundario block font-normal mt-0.5">Solo podrá ingresar con Microsoft.</small>
                             </span>
                         </label>
                     <?php endif; ?>
@@ -953,29 +980,29 @@ vista_encabezado([
 
             <?php if (!$Lb_EsNuevo): ?>
                 <?php $Lb_EsPropioEdicion = (int) $Gar_Edicion['usuario_id'] === (int) $Gar_Usuario['usuario_id']; ?>
-                <div class="panel-sep mt-4 pt-3">
-                    <div class="chk-title mb-2">Detalle</div>
+                <div class="mt-6 pt-4 border-t border-linea-sutil">
+                    <div class="fx-subtitulo-grupo mb-2">Detalle</div>
 
-                    <dl class="ficha-datos">
-                        <dt>Estado</dt>
-                        <dd>
+                    <dl class="grid grid-cols-[minmax(110px,auto)_1fr] gap-x-4 gap-y-2 m-0 text-xs">
+                        <dt class="text-apagado font-normal">Estado</dt>
+                        <dd class="m-0 text-tinta font-medium">
                             <?php if ((int) $Gar_Edicion['is_activo'] === 1): ?>
-                                <span class="st st-on"><span class="d"></span>Activo</span>
+                                <span class="fx-estado fx-estado-activo">Activo</span>
                             <?php else: ?>
-                                <span class="st st-off"><span class="d"></span>Inactivo</span>
+                                <span class="fx-estado fx-estado-inactivo">Inactivo</span>
                             <?php endif; ?>
                         </dd>
 
-                        <dt>Identidad de Entra</dt>
-                        <dd><?= $Gar_Edicion['entra_oid'] !== null ? 'Enlazada' : 'Pendiente del primer ingreso' ?></dd>
+                        <dt class="text-apagado font-normal">Identidad de Entra</dt>
+                        <dd class="m-0 text-tinta font-medium"><?= $Gar_Edicion['entra_oid'] !== null ? 'Enlazada' : 'Pendiente del primer ingreso' ?></dd>
 
-                        <dt>Último ingreso</dt>
-                        <dd><?= $Gar_Edicion['ultimo_ingreso_at'] !== null
+                        <dt class="text-apagado font-normal">Último ingreso</dt>
+                        <dd class="m-0 text-tinta font-medium"><?= $Gar_Edicion['ultimo_ingreso_at'] !== null
                                 ? e(date('d M Y, H:i', strtotime((string) $Gar_Edicion['ultimo_ingreso_at'])))
                                 : 'Nunca' ?></dd>
 
-                        <dt>Autorizado</dt>
-                        <dd>
+                        <dt class="text-apagado font-normal">Autorizado</dt>
+                        <dd class="m-0 text-tinta font-medium">
                             <?= e(date('d M Y', strtotime((string) $Gar_Edicion['created_at']))) ?>
                             <?php if (!empty($Gar_Edicion['created_by'])): ?>
                                 · <?= e((string) $Gar_Edicion['created_by']) ?>
@@ -983,8 +1010,8 @@ vista_encabezado([
                         </dd>
 
                         <?php if (!empty($Gar_Edicion['updated_at'])): ?>
-                            <dt>Última modificación</dt>
-                            <dd>
+                            <dt class="text-apagado font-normal">Última modificación</dt>
+                            <dd class="m-0 text-tinta font-medium">
                                 <?= e(date('d M Y, H:i', strtotime((string) $Gar_Edicion['updated_at']))) ?>
                                 <?php if (!empty($Gar_Edicion['updated_by'])): ?>
                                     · <?= e((string) $Gar_Edicion['updated_by']) ?>
@@ -994,11 +1021,11 @@ vista_encabezado([
                     </dl>
 
                     <?php if ($Lb_EsPropioEdicion): ?>
-                        <div class="sample-note mt-3">
+                        <p class="fx-nota mt-4 mb-0">
                             No podés darte de baja a vos mismo ni desvincular tu propia identidad.
-                        </div>
+                        </p>
                     <?php else: ?>
-                        <div class="modal-acciones mt-3">
+                        <div class="grid sm:grid-cols-2 gap-3 mt-4">
                             <div>
                                 <form method="post" action="/admin/usuarios.php"
                                       <?= (int) $Gar_Edicion['is_activo'] === 1
@@ -1007,14 +1034,14 @@ vista_encabezado([
                                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                     <input type="hidden" name="accion" value="cambiar_estado">
                                     <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
-                                    <button class="btn btn-ghost btn-sm w-100" type="submit">
-                                        <i class="bi bi-person-dash me-1"></i>
+                                    <button class="fx-btn fx-btn-neutro fx-btn-sm fx-btn-bloque" type="submit">
+                                        <?= icono('baja') ?>
                                         <?= (int) $Gar_Edicion['is_activo'] === 1 ? 'Dar de baja' : 'Reactivar usuario' ?>
                                     </button>
                                 </form>
-                                <div class="sample-note mt-1">
+                                <p class="fx-nota mt-1.5 mb-0">
                                     La baja es lógica: deja de poder ingresar y el histórico se conserva.
-                                </div>
+                                </p>
                             </div>
 
                             <?php if ($Gar_Edicion['entra_oid'] !== null): ?>
@@ -1024,36 +1051,35 @@ vista_encabezado([
                                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                         <input type="hidden" name="accion" value="desvincular">
                                         <input type="hidden" name="usuario_id" value="<?= $Gi_Editando ?>">
-                                        <button class="btn btn-ghost btn-sm w-100" type="submit">
-                                            <i class="bi bi-link-45deg me-1"></i>Desvincular identidad de Entra
+                                        <button class="fx-btn fx-btn-neutro fx-btn-sm fx-btn-bloque" type="submit">
+                                            <?= icono('enlace') ?>Desvincular identidad de Entra
                                         </button>
                                     </form>
-                                    <div class="sample-note mt-1">
+                                    <p class="fx-nota mt-1.5 mb-0">
                                         Se vuelve a enlazar por correo en el próximo ingreso. Sirve cuando la
                                         cuenta corporativa se recreó.
-                                    </div>
+                                    </p>
                                 </div>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
                 </div>
             <?php else: ?>
-                <div class="sample-note mt-3">
-                    <i class="bi bi-upload me-1"></i>
+                <p class="fx-nota mt-4 mb-0 flex items-center gap-1.5">
+                    <?= icono('carga') ?>
                     El alta masiva se hace por carga directa a <code>fx.usuario</code>.
-                </div>
+                </p>
             <?php endif; ?>
         </div>
 
-        <div class="modal-pie">
-            <a class="btn btn-ghost" href="/admin/usuarios.php">Cancelar</a>
-            <button class="btn btn-anc" type="submit" form="form-usuario">
-                <i class="bi bi-check2 me-1"></i><?= $Lb_EsNuevo ? 'Guardar autorización' : 'Guardar cambios' ?>
+        <div class="fx-modal-pie">
+            <a class="fx-btn fx-btn-neutro" href="/admin/usuarios.php">Cancelar</a>
+            <button class="fx-btn fx-btn-primario" type="submit" form="form-usuario">
+                <?= icono('confirmar') ?><?= $Lb_EsNuevo ? 'Guardar autorización' : 'Guardar cambios' ?>
             </button>
         </div>
     </dialog>
 <?php endif; ?>
-</div>
 
 <?php
 vista_pie();
