@@ -2,10 +2,9 @@
 /**
  * Fallas Exitosas · Administración de usuarios, roles y ámbito (PB-19).
  *
- * Propósito : Autorizar personas, editar sus datos, asignarles uno o varios
- *             roles y uno o varios ámbitos geográficos, activarlas o
- *             desactivarlas y desvincular su identidad de Entra ID, todo sin
- *             perder el histórico.
+ * Propósito : Autorizar personas, editar sus datos, asignarles un rol y los
+ *             países que pueden ver, activarlas o desactivarlas y desvincular
+ *             su identidad de Entra ID, dejando rastro en la auditoría.
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-25
  * Bitácora  : 2026-09-24 Versión inicial.
@@ -17,12 +16,16 @@
  *             2026-09-25 Contraseña local: asignar, restablecer y quitar.
  *             2026-09-25 El modal asigna ámbito por país; la región existente se
  *                        muestra y se guarda como sus países activos.
+ *             2026-09-28 Esquema de una sola tabla: un rol por persona, países
+ *                        en fx.usuario.paises ('*' = todos los habilitados) y
+ *                        credencial local en fx.usuario. Sin tablas temporales:
+ *                        cada cambio guarda valor anterior y nuevo en auditoría.
  *
  * Seguridad : Requiere permiso completo sobre `usuarios`. La verificación es
  *             de servidor; el menú solo refleja el resultado.
- *             La baja es lógica: la fila se conserva y el historial queda en
- *             la tabla temporal. Nunca se borra, porque la auditoría y las
- *             sesiones referencian al usuario.
+ *             La baja es lógica: la fila se conserva y cada cambio queda en
+ *             fx.auditoria. Nunca se borra, porque la auditoría referencia al
+ *             usuario.
  */
 
 declare(strict_types=1);
@@ -35,114 +38,50 @@ auth_exigir('usuarios', true);
 $Gv_Mensaje = '';
 $Gv_Tipo    = 'info';
 
-/** Columna de `fx.usuario_ambito` que corresponde a cada nivel. */
-const USUARIOS_COLUMNA_AMBITO = [
-    'region'  => 'region_id',
-    'pais'    => 'pais_id',
-    'zona'    => 'zona_id',
-    'oficina' => 'oficina_id',
-];
-
 /** Largo mínimo de una contraseña local asignada desde esta pantalla. */
 const USUARIOS_CLAVE_MINIMO = 8;
 
-/** Convierte una selección de IDs en enteros positivos y únicos. */
-function usuarios_ids_seleccionados(mixed $Pm_Valores_i): array
+/**
+ * Convierte la selección de países del formulario en el valor de fx.usuario.paises.
+ * Devuelve '*' si se marcó "todos"; si no, códigos habilitados separados por coma.
+ */
+function usuarios_paises_seleccionados(bool $Pb_Todos_i, mixed $Pm_Valores_i): string
 {
-    if (!is_array($Pm_Valores_i)) {
-        return [];
+    if ($Pb_Todos_i) {
+        return AUTH_TODOS_LOS_PAISES;
     }
 
-    $Lar_Resultado = [];
+    if (!is_array($Pm_Valores_i)) {
+        return '';
+    }
+
+    $Lar_Codigos = [];
 
     foreach ($Pm_Valores_i as $Lm_Valor) {
-        $Li_Id = filter_var($Lm_Valor, FILTER_VALIDATE_INT, [
-            'options' => ['min_range' => 1],
-        ]);
-
-        if ($Li_Id !== false) {
-            $Lar_Resultado[(int) $Li_Id] = (int) $Li_Id;
+        if (!is_string($Lm_Valor) || !isset(AUTH_PAISES[$Lm_Valor])) {
+            throw new InvalidArgumentException('Uno de los países seleccionados no está habilitado.');
         }
+
+        $Lar_Codigos[$Lm_Valor] = $Lm_Valor;
     }
 
-    return array_values($Lar_Resultado);
+    ksort($Lar_Codigos);
+
+    return implode(',', $Lar_Codigos);
 }
 
-/** Convierte valores nivel:id en ámbitos válidos y únicos. */
-function usuarios_ambitos_seleccionados(mixed $Pm_Valores_i): array
+/** Texto legible de un usuario para la bitácora (valor anterior y nuevo). */
+function usuarios_resumen(array $Par_Usuario_i): string
 {
-    if (!is_array($Pm_Valores_i)) {
-        return [];
-    }
+    $Lv_Paises = (string) ($Par_Usuario_i['paises'] ?? '');
 
-    $Lar_Resultado = [];
-
-    foreach ($Pm_Valores_i as $Lm_Valor) {
-        if (!is_string($Lm_Valor)
-            || preg_match('/\A(region|pais|zona|oficina):([1-9][0-9]*)\z/', $Lm_Valor, $Lar_Coincidencia) !== 1) {
-            throw new InvalidArgumentException('Uno de los ámbitos seleccionados no es válido.');
-        }
-
-        $Lv_Nivel = $Lar_Coincidencia[1];
-        $Li_Id    = (int) $Lar_Coincidencia[2];
-        $Lv_Clave = $Lv_Nivel . ':' . $Li_Id;
-
-        $Lar_Resultado[$Lv_Clave] = [
-            'nivel' => $Lv_Nivel,
-            'id'    => $Li_Id,
-        ];
-    }
-
-    return array_values($Lar_Resultado);
-}
-
-/**
- * Comprueba que cada rol y cada ámbito exista y siga activo.
- *
- * El formulario puede quedar abierto mientras alguien desactiva un catálogo;
- * sin esta comprobación el INSERT fallaría contra la llave foránea con un
- * mensaje técnico inútil para quien administra.
- */
-function usuarios_validar_seleccion(array $Par_Roles_i, array $Par_Ambitos_i, array $Par_Catalogos_i): void
-{
-    if ($Par_Roles_i === []) {
-        throw new InvalidArgumentException('Asigná al menos un rol funcional.');
-    }
-
-    if ($Par_Ambitos_i === []) {
-        throw new InvalidArgumentException('Asigná al menos un ámbito geográfico.');
-    }
-
-    foreach ($Par_Roles_i as $Li_RolId) {
-        if (!in_array($Li_RolId, $Par_Catalogos_i['roles'], true)) {
-            throw new InvalidArgumentException('Uno de los roles seleccionados ya no está disponible.');
-        }
-    }
-
-    foreach ($Par_Ambitos_i as $Lar_Ambito) {
-        if (!in_array($Lar_Ambito['id'], $Par_Catalogos_i[$Lar_Ambito['nivel']], true)) {
-            throw new InvalidArgumentException('Uno de los ámbitos seleccionados ya no está disponible.');
-        }
-    }
-}
-
-/**
- * Reemplaza los roles del usuario.
- *
- * Se borra y se vuelve a insertar: la tabla tiene versionado de sistema, así
- * que la asignación anterior queda registrada en `fx.usuario_rol_historial`.
- */
-function usuarios_reemplazar_roles(int $Pi_UsuarioId_i, array $Par_Roles_i, string $Pv_Actor_i): void
-{
-    db_ejecutar('DELETE FROM fx.usuario_rol WHERE usuario_id = :usuario_id', [':usuario_id' => $Pi_UsuarioId_i]);
-
-    foreach ($Par_Roles_i as $Li_RolId) {
-        db_ejecutar(
-            'INSERT INTO fx.usuario_rol (usuario_id, rol_id, created_by)
-             VALUES (:usuario_id, :rol_id, :actor)',
-            [':usuario_id' => $Pi_UsuarioId_i, ':rol_id' => $Li_RolId, ':actor' => $Pv_Actor_i]
-        );
-    }
+    return sprintf(
+        '%s · rol %s · países %s · %s',
+        (string) ($Par_Usuario_i['correo'] ?? ''),
+        (string) ($Par_Usuario_i['rol'] ?? ''),
+        $Lv_Paises === AUTH_TODOS_LOS_PAISES ? 'todos' : ($Lv_Paises === '' ? 'ninguno' : $Lv_Paises),
+        (int) ($Par_Usuario_i['is_activo'] ?? 1) === 1 ? 'activo' : 'inactivo'
+    );
 }
 
 /**
@@ -151,106 +90,43 @@ function usuarios_reemplazar_roles(int $Pi_UsuarioId_i, array $Par_Roles_i, stri
  */
 function usuarios_asignar_clave(int $Pi_UsuarioId_i, string $Pv_Clave_i, string $Pv_Actor_i): void
 {
-    $Lv_Hash = password_hash($Pv_Clave_i, PASSWORD_DEFAULT);
-
-    $Lo_Sentencia = db_ejecutar(
-        'UPDATE fx.usuario_clave
-         SET clave_hash = :clave_hash, intentos_fallidos = 0, bloqueado_hasta = NULL,
-             actualizada_at = SYSUTCDATETIME(), actualizada_by = :actor
+    db_ejecutar(
+        'UPDATE fx.usuario
+         SET clave_hash = :clave_hash, clave_intentos = 0, clave_bloqueada_hasta = NULL,
+             clave_actualizada_at = SYSUTCDATETIME(), clave_actualizada_by = :actor
          WHERE usuario_id = :usuario_id',
-        [':clave_hash' => $Lv_Hash, ':actor' => $Pv_Actor_i, ':usuario_id' => $Pi_UsuarioId_i]
+        [
+            ':clave_hash' => password_hash($Pv_Clave_i, PASSWORD_DEFAULT),
+            ':actor'      => $Pv_Actor_i,
+            ':usuario_id' => $Pi_UsuarioId_i,
+        ]
     );
-
-    if ($Lo_Sentencia->rowCount() === 0) {
-        db_ejecutar(
-            'INSERT INTO fx.usuario_clave (usuario_id, clave_hash, actualizada_by)
-             VALUES (:usuario_id, :clave_hash, :actor)',
-            [':usuario_id' => $Pi_UsuarioId_i, ':clave_hash' => $Lv_Hash, ':actor' => $Pv_Actor_i]
-        );
-    }
 }
 
-/** Reemplaza los ámbitos del usuario. Igual que los roles, deja historial. */
-function usuarios_reemplazar_ambitos(int $Pi_UsuarioId_i, array $Par_Ambitos_i, string $Pv_Actor_i): void
+/** Quita la contraseña local: desde ahí solo puede ingresar con Entra ID. */
+function usuarios_quitar_clave(int $Pi_UsuarioId_i, string $Pv_Actor_i): void
 {
-    db_ejecutar('DELETE FROM fx.usuario_ambito WHERE usuario_id = :usuario_id', [':usuario_id' => $Pi_UsuarioId_i]);
-
-    foreach ($Par_Ambitos_i as $Lar_Ambito) {
-        db_ejecutar(
-            sprintf(
-                'INSERT INTO fx.usuario_ambito (usuario_id, nivel_ambito, %s, created_by)
-                 VALUES (:usuario_id, :nivel, :ambito_id, :actor)',
-                USUARIOS_COLUMNA_AMBITO[$Lar_Ambito['nivel']]   // lista blanca, nunca entrada libre
-            ),
-            [
-                ':usuario_id' => $Pi_UsuarioId_i,
-                ':nivel'      => $Lar_Ambito['nivel'],
-                ':ambito_id'  => $Lar_Ambito['id'],
-                ':actor'      => $Pv_Actor_i,
-            ]
-        );
-    }
+    db_ejecutar(
+        'UPDATE fx.usuario
+         SET clave_hash = NULL, clave_intentos = 0, clave_bloqueada_hasta = NULL,
+             clave_actualizada_at = SYSUTCDATETIME(), clave_actualizada_by = :actor
+         WHERE usuario_id = :usuario_id',
+        [':actor' => $Pv_Actor_i, ':usuario_id' => $Pi_UsuarioId_i]
+    );
 }
 
 /** Cuenta administradores activos, sin contar al usuario indicado. */
 function usuarios_administradores_activos(int $Pi_Excluir_i = 0): int
 {
     $Lar_Fila = db_fila(
-        "SELECT COUNT(DISTINCT u.usuario_id) AS total
-         FROM fx.usuario AS u
-             INNER JOIN fx.usuario_rol AS ur ON ur.usuario_id = u.usuario_id
-             INNER JOIN fx.rol AS r ON r.rol_id = ur.rol_id
-         WHERE u.is_activo = 1 AND r.is_activo = 1
-           AND r.codigo = 'administrador'
-           AND u.usuario_id <> :excluir",
+        "SELECT COUNT(*) AS total
+         FROM fx.usuario
+         WHERE is_activo = 1 AND rol = 'administrador' AND usuario_id <> :excluir",
         [':excluir' => $Pi_Excluir_i]
     );
 
     return (int) ($Lar_Fila['total'] ?? 0);
 }
-
-/** Indica si el conjunto de roles elegido incluye el rol administrador. */
-function usuarios_incluye_administrador(array $Par_Roles_i, array $Par_Catalogo_i): bool
-{
-    foreach ($Par_Catalogo_i as $Lar_Rol) {
-        if ($Lar_Rol['codigo'] === 'administrador' && in_array((int) $Lar_Rol['rol_id'], $Par_Roles_i, true)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/** Texto legible de un conjunto de ámbitos, para la bitácora. */
-function usuarios_ambitos_a_texto(array $Par_Ambitos_i): string
-{
-    $Lar_Partes = [];
-
-    foreach ($Par_Ambitos_i as $Lar_Ambito) {
-        $Lar_Partes[] = $Lar_Ambito['nivel'] . ':' . $Lar_Ambito['id'];
-    }
-
-    return implode(' ', $Lar_Partes);
-}
-
-/* --------------------------------------------------------------------------
-   Catálogos
-
-   Se cargan antes de procesar el formulario porque la validación los usa.
-   -------------------------------------------------------------------------- */
-$Gar_Roles    = db_filas('SELECT rol_id, codigo, nombre, descripcion FROM fx.rol WHERE is_activo = 1 ORDER BY orden');
-$Gar_Regiones = db_filas('SELECT region_id  AS id, nombre FROM fx.region  WHERE is_activo = 1 ORDER BY nombre');
-$Gar_Paises   = db_filas('SELECT pais_id    AS id, nombre, codigo FROM fx.pais WHERE is_activo = 1 ORDER BY nombre');
-$Gar_Zonas    = db_filas('SELECT zona_id    AS id, nombre FROM fx.zona    WHERE is_activo = 1 ORDER BY nombre');
-$Gar_Oficinas = db_filas('SELECT oficina_id AS id, nombre FROM fx.oficina WHERE is_activo = 1 ORDER BY nombre');
-
-$Gar_Catalogos = [
-    'roles'   => array_map('intval', array_column($Gar_Roles, 'rol_id')),
-    'region'  => array_map('intval', array_column($Gar_Regiones, 'id')),
-    'pais'    => array_map('intval', array_column($Gar_Paises, 'id')),
-    'zona'    => array_map('intval', array_column($Gar_Zonas, 'id')),
-    'oficina' => array_map('intval', array_column($Gar_Oficinas, 'id')),
-];
 
 /* Usuario abierto en el panel de edición (0 = alta de un usuario nuevo). */
 $Gi_Editando = (int) ($_GET['editar'] ?? 0);
@@ -271,8 +147,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $Lv_Correo   = strtolower(trim((string) ($_POST['correo'] ?? '')));
                 $Lv_Nombre   = trim((string) ($_POST['nombre'] ?? ''));
                 $Lv_Puesto   = trim((string) ($_POST['puesto'] ?? ''));
-                $Lar_Roles   = usuarios_ids_seleccionados($_POST['roles'] ?? []);
-                $Lar_Ambitos = usuarios_ambitos_seleccionados($_POST['ambitos'] ?? []);
+                $Lv_Rol      = (string) ($_POST['rol'] ?? '');
+                $Lv_Paises   = usuarios_paises_seleccionados(
+                    ($_POST['paises_todos'] ?? '') === '1',
+                    $_POST['paises'] ?? []
+                );
                 $Lv_Clave        = (string) ($_POST['clave'] ?? '');
                 $Lv_ClaveRepetir = (string) ($_POST['clave_repetir'] ?? '');
                 $Lb_QuitarClave  = ($_POST['quitar_clave'] ?? '') === '1';
@@ -288,7 +167,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new InvalidArgumentException('El nombre completo es obligatorio.');
                 }
 
-                usuarios_validar_seleccion($Lar_Roles, $Lar_Ambitos, $Gar_Catalogos);
+                if (!isset(AUTH_ROLES[$Lv_Rol])) {
+                    throw new InvalidArgumentException('Elegí un rol funcional.');
+                }
+
+                if ($Lv_Paises === '') {
+                    throw new InvalidArgumentException('Asigná al menos un país, o todos los habilitados.');
+                }
 
                 if ($Lv_Clave !== '' || $Lv_ClaveRepetir !== '') {
                     if (mb_strlen($Lv_Clave) < USUARIOS_CLAVE_MINIMO || mb_strlen($Lv_Clave) > 256) {
@@ -310,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new InvalidArgumentException('No podés quitar tu propia contraseña local: podrías quedarte sin acceso.');
                 }
 
-                $Lb_SeraAdministrador = usuarios_incluye_administrador($Lar_Roles, $Gar_Roles);
+                $Lb_SeraAdministrador = $Lv_Rol === 'administrador';
 
                 /* El correo identifica a la persona en el alta y en la búsqueda:
                    no puede repetirse en otra fila.                              */
@@ -329,22 +214,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($Lv_Accion === 'autorizar') {
                     db_ejecutar(
-                        'INSERT INTO fx.usuario (correo, nombre, puesto, is_activo, created_by)
-                         VALUES (:correo, :nombre, :puesto, 1, :actor)',
+                        'INSERT INTO fx.usuario (correo, nombre, puesto, rol, paises, is_activo, created_by)
+                         VALUES (:correo, :nombre, :puesto, :rol, :paises, 1, :actor)',
                         [
                             ':correo' => $Lv_Correo,
                             ':nombre' => $Lv_Nombre,
                             ':puesto' => $Lv_Puesto !== '' ? $Lv_Puesto : null,
+                            ':rol'    => $Lv_Rol,
+                            ':paises' => $Lv_Paises,
                             ':actor'  => $Gar_Usuario['correo'],
                         ]
                     );
 
                     $Li_Objetivo = (int) $Lo_Conexion->lastInsertId();
+                    $Lar_Antes   = null;
                     $Lv_Detalle  = 'Usuario autorizado.';
                     $Lv_Evento   = 'alta';
                 } else {
                     $Lar_Antes = db_fila(
-                        'SELECT usuario_id, correo, nombre, puesto, is_activo
+                        'SELECT usuario_id, correo, nombre, puesto, rol, paises, is_activo
                          FROM fx.usuario WHERE usuario_id = :usuario_id',
                         [':usuario_id' => $Li_Objetivo]
                     );
@@ -367,12 +255,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     db_ejecutar(
                         'UPDATE fx.usuario
                          SET correo = :correo, nombre = :nombre, puesto = :puesto,
+                             rol = :rol, paises = :paises,
                              updated_at = SYSUTCDATETIME(), updated_by = :actor
                          WHERE usuario_id = :usuario_id',
                         [
                             ':correo'     => $Lv_Correo,
                             ':nombre'     => $Lv_Nombre,
                             ':puesto'     => $Lv_Puesto !== '' ? $Lv_Puesto : null,
+                            ':rol'        => $Lv_Rol,
+                            ':paises'     => $Lv_Paises,
                             ':actor'      => $Gar_Usuario['correo'],
                             ':usuario_id' => $Li_Objetivo,
                         ]
@@ -382,30 +273,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $Lv_Evento  = 'cambio';
                 }
 
-                usuarios_reemplazar_roles($Li_Objetivo, $Lar_Roles, (string) $Gar_Usuario['correo']);
-                usuarios_reemplazar_ambitos($Li_Objetivo, $Lar_Ambitos, (string) $Gar_Usuario['correo']);
-
                 if ($Lv_Clave !== '') {
                     usuarios_asignar_clave($Li_Objetivo, $Lv_Clave, (string) $Gar_Usuario['correo']);
                     $Lv_Detalle .= ' Contraseña local asignada.';
                 } elseif ($Lb_QuitarClave) {
-                    db_ejecutar(
-                        'DELETE FROM fx.usuario_clave WHERE usuario_id = :usuario_id',
-                        [':usuario_id' => $Li_Objetivo]
-                    );
+                    usuarios_quitar_clave($Li_Objetivo, (string) $Gar_Usuario['correo']);
                     $Lv_Detalle .= ' Contraseña local quitada.';
                 }
 
                 $Lo_Conexion->commit();
 
                 audit_registrar($Lv_Evento, [
-                    'usuario_id'  => (int) $Gar_Usuario['usuario_id'],
-                    'entidad'     => 'usuario',
-                    'entidad_id'  => (string) $Li_Objetivo,
-                    'valor_nuevo' => $Lv_Correo
-                        . ' · roles ' . implode(',', $Lar_Roles)
-                        . ' · ámbitos ' . usuarios_ambitos_a_texto($Lar_Ambitos),
-                    'detalle'     => $Lv_Detalle,
+                    'usuario_id'     => (int) $Gar_Usuario['usuario_id'],
+                    'entidad'        => 'usuario',
+                    'entidad_id'     => (string) $Li_Objetivo,
+                    'valor_anterior' => $Lar_Antes !== null ? usuarios_resumen($Lar_Antes) : null,
+                    'valor_nuevo'    => usuarios_resumen([
+                        'correo'    => $Lv_Correo,
+                        'rol'       => $Lv_Rol,
+                        'paises'    => $Lv_Paises,
+                        'is_activo' => $Lar_Antes['is_activo'] ?? 1,
+                    ]),
+                    'detalle'        => $Lv_Detalle,
                 ]);
 
                 $Gi_Editando = 0;
@@ -439,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new InvalidArgumentException('Es el último administrador activo: no se puede desactivar.');
                 }
 
-                // Baja lógica: la fila se conserva y el historial queda en la tabla temporal.
+                // Baja lógica: la fila se conserva y el cambio queda en la auditoría.
                 db_ejecutar(
                     'UPDATE fx.usuario
                      SET is_activo = :estado, updated_at = SYSUTCDATETIME(), updated_by = :actor
@@ -456,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'detalle'        => 'Cambio de estado de ' . $Lar_Objetivo['correo'],
                 ]);
 
-                $Gv_Mensaje = $Li_Nuevo === 1 ? 'Usuario activado.' : 'Usuario desactivado. El histórico se conserva.';
+                $Gv_Mensaje = $Li_Nuevo === 1 ? 'Usuario activado.' : 'Usuario desactivado. Queda registrado en la auditoría.';
                 $Gv_Tipo    = 'info';
             }
 
@@ -524,87 +413,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
    Datos de pantalla
    -------------------------------------------------------------------------- */
 $Gar_Usuarios = db_filas(
-    "SELECT
-         u.usuario_id                                   AS usuario_id,
-         u.correo                                       AS correo,
-         u.nombre                                       AS nombre,
-         u.puesto                                       AS puesto,
-         u.is_activo                                    AS is_activo,
-         u.entra_oid                                    AS entra_oid,
-         u.ultimo_ingreso_at                            AS ultimo_ingreso_at,
-         STUFF((SELECT ', ' + r2.nombre
-                FROM fx.usuario_rol AS ur2
-                    INNER JOIN fx.rol AS r2 ON r2.rol_id = ur2.rol_id
-                WHERE ur2.usuario_id = u.usuario_id
-                ORDER BY r2.orden
-                FOR XML PATH('')), 1, 2, '')            AS roles,
-         STUFF((SELECT ',' + r3.codigo
-                FROM fx.usuario_rol AS ur3
-                    INNER JOIN fx.rol AS r3 ON r3.rol_id = ur3.rol_id
-                WHERE ur3.usuario_id = u.usuario_id
-                ORDER BY r3.orden
-                FOR XML PATH('')), 1, 1, '')            AS roles_codigos,
-         STUFF((SELECT ', ' + vp.pais_codigo
-                FROM fx.v_usuario_pais AS vp
-                WHERE vp.usuario_id = u.usuario_id
-                ORDER BY vp.pais_codigo
-                FOR XML PATH('')), 1, 2, '')            AS paises,
-         (SELECT COUNT(*)
-          FROM fx.usuario_ambito AS ua2
-          WHERE ua2.usuario_id = u.usuario_id
-            AND ua2.nivel_ambito = 'region')            AS ambitos_region
-     FROM fx.usuario AS u
-     ORDER BY u.is_activo DESC, u.nombre"
+    'SELECT usuario_id, correo, nombre, puesto, rol, paises, is_activo, entra_oid, ultimo_ingreso_at
+     FROM fx.usuario
+     ORDER BY is_activo DESC, nombre'
 );
 
-/* Datos del usuario abierto en el panel derecho. */
-$Gar_Edicion        = null;
-$Gar_EdicionRoles   = [];
-$Gar_EdicionAmbitos = [];
+/* Datos del usuario abierto en el modal. El hash de la clave nunca se lee. */
+$Gar_Edicion = null;
 
 if ($Gi_Editando > 0) {
     $Gar_Edicion = db_fila(
-        'SELECT usuario_id, correo, nombre, puesto, is_activo, entra_oid, ultimo_ingreso_at,
-                created_at, created_by, updated_at, updated_by
+        'SELECT usuario_id, correo, nombre, puesto, rol, paises, is_activo, entra_oid, ultimo_ingreso_at,
+                created_at, created_by, updated_at, updated_by,
+                CASE WHEN clave_hash IS NULL THEN 0 ELSE 1 END AS tiene_clave,
+                clave_actualizada_at, clave_actualizada_by,
+                CASE WHEN clave_bloqueada_hasta > SYSUTCDATETIME() THEN clave_bloqueada_hasta END AS clave_bloqueada_hasta
          FROM fx.usuario WHERE usuario_id = :usuario_id',
         [':usuario_id' => $Gi_Editando]
     );
 
     if ($Gar_Edicion === null) {
         $Gi_Editando = 0;
-    } else {
-        $Gar_EdicionRoles = array_map(
-            'intval',
-            array_column(
-                db_filas(
-                    'SELECT rol_id FROM fx.usuario_rol WHERE usuario_id = :usuario_id',
-                    [':usuario_id' => $Gi_Editando]
-                ),
-                'rol_id'
-            )
-        );
-
-        foreach (db_filas(
-            'SELECT nivel_ambito, region_id, pais_id, zona_id, oficina_id
-             FROM fx.usuario_ambito WHERE usuario_id = :usuario_id',
-            [':usuario_id' => $Gi_Editando]
-        ) as $Lar_Fila) {
-            $Lv_Nivel   = (string) $Lar_Fila['nivel_ambito'];
-            $Lv_Columna = USUARIOS_COLUMNA_AMBITO[$Lv_Nivel] ?? null;
-
-            if ($Lv_Columna !== null && $Lar_Fila[$Lv_Columna] !== null) {
-                $Gar_EdicionAmbitos[] = $Lv_Nivel . ':' . (int) $Lar_Fila[$Lv_Columna];
-            }
-        }
     }
-}
-
-/* Si el formulario se rechazó, se conserva lo que la persona había marcado. */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $Gv_Tipo === 'error') {
-    $Gar_EdicionRoles   = usuarios_ids_seleccionados($_POST['roles'] ?? []);
-    $Gar_EdicionAmbitos = is_array($_POST['ambitos'] ?? null)
-        ? array_values(array_filter($_POST['ambitos'], 'is_string'))
-        : [];
 }
 
 /* --------------------------------------------------------------------------
@@ -623,73 +453,28 @@ $Gb_ModalAbierto = $Gi_Editando > 0
 
 $Gb_Reenvio = in_array($Gv_AccionRechazada, ['autorizar', 'editar'], true);
 
+/* Si el formulario se rechazó, se conserva lo que la persona había escrito y marcado. */
 $Gar_Formulario = [
     'correo' => $Gb_Reenvio ? trim((string) ($_POST['correo'] ?? '')) : (string) ($Gar_Edicion['correo'] ?? ''),
     'nombre' => $Gb_Reenvio ? trim((string) ($_POST['nombre'] ?? '')) : (string) ($Gar_Edicion['nombre'] ?? ''),
     'puesto' => $Gb_Reenvio ? trim((string) ($_POST['puesto'] ?? '')) : (string) ($Gar_Edicion['puesto'] ?? ''),
+    'rol'    => $Gb_Reenvio ? (string) ($_POST['rol'] ?? '') : (string) ($Gar_Edicion['rol'] ?? ''),
 ];
 
-/* El modal ya no ofrece el ámbito de región: quien lo tenga se muestra con los
-   países activos que esa región le concede, y al guardar queda asignado por país. */
-if ($Gi_Editando > 0 && !$Gb_Reenvio) {
-    foreach (db_filas(
-        "SELECT p.pais_id
-         FROM fx.usuario_ambito AS ua
-             INNER JOIN fx.pais AS p ON p.region_id = ua.region_id AND p.is_activo = 1
-         WHERE ua.usuario_id = :usuario_id AND ua.nivel_ambito = 'region'",
-        [':usuario_id' => $Gi_Editando]
-    ) as $Lar_Fila) {
-        $Gar_EdicionAmbitos[] = 'pais:' . (int) $Lar_Fila['pais_id'];
-    }
-
-    $Gar_EdicionAmbitos = array_values(array_unique(array_filter(
-        $Gar_EdicionAmbitos,
-        static fn (string $Lv_Clave): bool => !str_starts_with($Lv_Clave, 'region:')
-    )));
+if ($Gb_Reenvio) {
+    $Gb_FormTodos  = ($_POST['paises_todos'] ?? '') === '1';
+    $Gar_FormPaises = is_array($_POST['paises'] ?? null)
+        ? array_values(array_filter($_POST['paises'], 'is_string'))
+        : [];
+} else {
+    $Lv_PaisesGuardados = (string) ($Gar_Edicion['paises'] ?? '');
+    $Gb_FormTodos   = $Lv_PaisesGuardados === AUTH_TODOS_LOS_PAISES;
+    $Gar_FormPaises = $Gb_FormTodos ? [] : auth_paises_efectivos($Lv_PaisesGuardados);
 }
-
-/* Estado de la contraseña local del usuario en edición (null = no tiene). */
-$Gar_EdicionClave = $Gi_Editando > 0
-    ? db_fila(
-        'SELECT actualizada_at, actualizada_by,
-                CASE WHEN bloqueado_hasta > SYSUTCDATETIME() THEN bloqueado_hasta END AS bloqueado_hasta
-         FROM fx.usuario_clave WHERE usuario_id = :usuario_id',
-        [':usuario_id' => $Gi_Editando]
-    )
-    : null;
 
 $Gi_Activos = 0;
 foreach ($Gar_Usuarios as $Lar_Fila) {
     $Gi_Activos += (int) $Lar_Fila['is_activo'];
-}
-
-/**
- * Imprime un grupo de casillas de un catálogo de ámbito.
- *
- * @param array  $Par_Items_i    Filas con id y nombre.
- * @param string $Pv_Nivel_i     region | pais | zona | oficina
- * @param array  $Par_Marcados_i Claves nivel:id ya asignadas.
- */
-function usuarios_casillas_ambito(array $Par_Items_i, string $Pv_Nivel_i, string $Pv_Titulo_i, array $Par_Marcados_i): void
-{
-    if ($Par_Items_i === []) {
-        return;
-    }
-    ?>
-    <div class="mt-2 first:mt-0">
-        <div class="fx-subtitulo-grupo mb-1.5"><?= e($Pv_Titulo_i) ?></div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
-            <?php foreach ($Par_Items_i as $Lar_Item): ?>
-                <?php $Lv_Clave = $Pv_Nivel_i . ':' . (int) $Lar_Item['id']; ?>
-                <label class="fx-casilla">
-                    <input type="checkbox" name="ambitos[]" value="<?= e($Lv_Clave) ?>"
-                           <?= in_array($Lv_Clave, $Par_Marcados_i, true) ? 'checked' : '' ?>>
-                    <span><?= e($Lar_Item['nombre']) ?><?= isset($Lar_Item['codigo']) ? ' · ' . e((string) $Lar_Item['codigo']) : '' ?></span>
-                </label>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php
 }
 
 vista_encabezado([
@@ -718,11 +503,11 @@ vista_encabezado([
     </div>
     <div class="fx-kpi">
         <div class="fx-kpi-icono fx-tinte-morado"><?= icono('rol') ?></div>
-        <div><div class="fx-kpi-valor tnum text-tinta"><?= count($Gar_Roles) ?></div><div class="fx-kpi-texto">Roles definidos</div></div>
+        <div><div class="fx-kpi-valor tnum text-tinta"><?= count(AUTH_ROLES) ?></div><div class="fx-kpi-texto">Roles definidos</div></div>
     </div>
     <div class="fx-kpi">
         <div class="fx-kpi-icono fx-tinte-celeste"><?= icono('pais') ?></div>
-        <div><div class="fx-kpi-valor tnum text-tinta">4</div><div class="fx-kpi-texto">Niveles de ámbito</div></div>
+        <div><div class="fx-kpi-valor tnum text-tinta"><?= count(AUTH_PAISES) ?></div><div class="fx-kpi-texto">Países habilitados</div></div>
     </div>
 </div>
 
@@ -732,13 +517,13 @@ vista_encabezado([
         <b>Entra ID autentica · SQL Server autoriza.</b>
         Cada persona inicia sesión con su cuenta corporativa; el acceso se concede solo si está
         autorizada aquí. El enlace es por identidad inmutable de Entra, no por el correo.
-        Al desactivar, se conserva el histórico.
+        Al desactivar, la persona se conserva y cada cambio queda en la auditoría.
     </p>
 </div>
 
 <div class="fx-tarjeta mt-4">
         <div class="fx-tarjeta-cab">
-            <div><h2>Usuarios</h2><div class="sub">Rol y ámbito efectivo</div></div>
+            <div><h2>Usuarios</h2><div class="sub">Rol y países efectivos</div></div>
             <a class="fx-btn fx-btn-primario fx-btn-sm" href="/admin/usuarios.php?nuevo=1">
                 <?= icono('agregar') ?>Nuevo usuario
             </a>
@@ -747,11 +532,11 @@ vista_encabezado([
              aria-label="Usuarios autorizados">
             <table class="fx-tabla">
                 <caption class="sr-only">
-                    Usuarios autorizados, sus roles, ámbitos, estado, último ingreso y acciones disponibles.
+                    Usuarios autorizados, su rol, países, estado, último ingreso y acciones disponibles.
                 </caption>
                 <thead>
                     <tr>
-                        <th scope="col">Usuario</th><th scope="col">Rol</th><th scope="col">Ámbito</th>
+                        <th scope="col">Usuario</th><th scope="col">Rol</th><th scope="col">Países</th>
                         <th scope="col">Estado</th><th scope="col">Último ingreso</th><th scope="col" class="text-right">Acciones</th>
                     </tr>
                 </thead>
@@ -760,8 +545,9 @@ vista_encabezado([
                     <?php
                     $Lb_EsPropio  = (int) $Lar_Fila['usuario_id'] === (int) $Gar_Usuario['usuario_id'];
                     $Lb_EnEdicion = (int) $Lar_Fila['usuario_id'] === $Gi_Editando;
-                    $Lar_Codigos  = array_values(array_filter(explode(',', (string) $Lar_Fila['roles_codigos'])));
-                    $Lar_Nombres  = array_values(array_filter(explode(', ', (string) $Lar_Fila['roles'])));
+                    $Lv_RolFila   = (string) $Lar_Fila['rol'];
+                    $Lb_TodosFila = (string) $Lar_Fila['paises'] === AUTH_TODOS_LOS_PAISES;
+                    $Lar_PaisesFila = $Lb_TodosFila ? [] : auth_paises_efectivos((string) $Lar_Fila['paises']);
                     ?>
                     <tr<?= $Lb_EnEdicion ? ' class="fx-fila-activa"' : '' ?>>
                         <td>
@@ -778,25 +564,21 @@ vista_encabezado([
                             </a>
                         </td>
                         <td>
-                            <span class="fx-grupo-tags">
-                            <?php if ($Lar_Nombres === []): ?>
-                                <span class="fx-secundario">Sin rol</span>
+                            <?php if (isset(AUTH_ROLES[$Lv_RolFila])): ?>
+                                <span class="fx-rol fx-rol-<?= e($Lv_RolFila) ?>"><?= e(AUTH_ROLES[$Lv_RolFila]['nombre']) ?></span>
                             <?php else: ?>
-                                <?php foreach ($Lar_Nombres as $Li_Indice => $Lv_NombreRol): ?>
-                                    <span class="fx-rol fx-rol-<?= e($Lar_Codigos[$Li_Indice] ?? 'consulta') ?>"><?= e($Lv_NombreRol) ?></span>
-                                <?php endforeach; ?>
+                                <span class="fx-secundario">Sin rol</span>
                             <?php endif; ?>
-                            </span>
                         </td>
                         <td>
                             <span class="fx-grupo-tags">
-                            <?php if ((int) $Lar_Fila['ambitos_region'] > 0): ?>
-                                <span class="fx-ambito fx-ambito-todo">Regional</span>
+                            <?php if ($Lb_TodosFila): ?>
+                                <span class="fx-ambito fx-ambito-todo">Todos</span>
                             <?php endif; ?>
-                            <?php foreach (array_filter(explode(', ', (string) $Lar_Fila['paises'])) as $Lv_Pais): ?>
+                            <?php foreach ($Lar_PaisesFila as $Lv_Pais): ?>
                                 <span class="fx-ambito"><?= e($Lv_Pais) ?></span>
                             <?php endforeach; ?>
-                            <?php if (($Lar_Fila['paises'] ?? '') === ''): ?>
+                            <?php if (!$Lb_TodosFila && $Lar_PaisesFila === []): ?>
                                 <span class="fx-secundario">Sin ámbito</span>
                             <?php endif; ?>
                             </span>
@@ -823,7 +605,7 @@ vista_encabezado([
                                 <?php if (!$Lb_EsPropio): ?>
                                     <form method="post" action="/admin/usuarios.php" class="inline"
                                           <?= (int) $Lar_Fila['is_activo'] === 1
-                                              ? 'data-confirmar="¿Desactivar a ' . e($Lar_Fila['nombre']) . '? Deja de poder ingresar; el histórico se conserva."'
+                                              ? 'data-confirmar="¿Desactivar a ' . e($Lar_Fila['nombre']) . '? Deja de poder ingresar; queda registrado en la auditoría."'
                                               : '' ?>>
                                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                         <input type="hidden" name="accion" value="cambiar_estado">
@@ -850,7 +632,10 @@ vista_encabezado([
 </div>
 
 <?php if ($Gb_ModalAbierto): ?>
-    <?php $Lb_EsNuevo = $Gi_Editando === 0; ?>
+    <?php
+    $Lb_EsNuevo    = $Gi_Editando === 0;
+    $Lb_TieneClave = !$Lb_EsNuevo && (int) $Gar_Edicion['tiene_clave'] === 1;
+    ?>
     <dialog class="fx-modal" open aria-labelledby="modal-usuario-titulo"
             data-modal data-cerrar="/admin/usuarios.php">
         <div class="fx-modal-cab">
@@ -901,33 +686,42 @@ vista_encabezado([
                 </div>
 
                 <fieldset class="fx-fieldset mb-5">
-                    <legend>Roles funcionales</legend>
+                    <legend>Rol funcional</legend>
                     <div class="grid sm:grid-cols-2 gap-1.5">
-                        <?php foreach ($Gar_Roles as $Lar_Rol): ?>
+                        <?php foreach (AUTH_ROLES as $Lv_Codigo => $Lar_Rol): ?>
                             <label class="fx-casilla">
-                                <input type="checkbox" name="roles[]" value="<?= (int) $Lar_Rol['rol_id'] ?>"
-                                       <?= in_array((int) $Lar_Rol['rol_id'], $Gar_EdicionRoles, true) ? 'checked' : '' ?>>
+                                <input type="radio" name="rol" value="<?= e($Lv_Codigo) ?>" required
+                                       <?= $Gar_Formulario['rol'] === $Lv_Codigo ? 'checked' : '' ?>>
                                 <span>
                                     <?= e($Lar_Rol['nombre']) ?>
-                                    <small class="fx-secundario block font-normal mt-0.5"><?= e((string) ($Lar_Rol['descripcion'] ?? '')) ?></small>
+                                    <small class="fx-secundario block font-normal mt-0.5"><?= e($Lar_Rol['descripcion']) ?></small>
                                 </span>
                             </label>
                         <?php endforeach; ?>
                     </div>
-                    <p class="fx-nota mt-1.5 mb-0">Se puede asignar más de un rol; los permisos se suman.</p>
+                    <p class="fx-nota mt-1.5 mb-0">Un rol por persona. Los permisos de cada rol se definen en el código.</p>
                 </fieldset>
 
                 <fieldset class="fx-fieldset">
-                    <legend>Ámbito geográfico</legend>
-                    <div>
-                        <?php
-                        usuarios_casillas_ambito($Gar_Paises,   'pais',    'País',                      $Gar_EdicionAmbitos);
-                        usuarios_casillas_ambito($Gar_Zonas,    'zona',    'Zona',                      $Gar_EdicionAmbitos);
-                        usuarios_casillas_ambito($Gar_Oficinas, 'oficina', 'Oficina',                   $Gar_EdicionAmbitos);
-                        ?>
+                    <legend>Países</legend>
+                    <label class="fx-casilla mb-2">
+                        <input type="checkbox" name="paises_todos" value="1" <?= $Gb_FormTodos ? 'checked' : '' ?>>
+                        <span>
+                            Todos los países habilitados
+                            <small class="fx-secundario block font-normal mt-0.5">Incluye automáticamente los que se habiliten después.</small>
+                        </span>
+                    </label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+                        <?php foreach (AUTH_PAISES as $Lv_Codigo => $Lv_NombrePais): ?>
+                            <label class="fx-casilla">
+                                <input type="checkbox" name="paises[]" value="<?= e($Lv_Codigo) ?>"
+                                       <?= in_array($Lv_Codigo, $Gar_FormPaises, true) ? 'checked' : '' ?>>
+                                <span><?= e($Lv_NombrePais) ?> · <?= e($Lv_Codigo) ?></span>
+                            </label>
+                        <?php endforeach; ?>
                     </div>
                     <p class="fx-nota mt-1.5 mb-0">
-                        Se pueden combinar niveles. Marcá cada país al que la persona debe tener acceso.
+                        Si marcás "Todos", la selección individual se ignora.
                     </p>
                 </fieldset>
 
@@ -935,11 +729,11 @@ vista_encabezado([
                     <legend>Contraseña local</legend>
                     <?php if (!$Lb_EsNuevo): ?>
                         <div class="fx-nota mb-2">
-                            <?php if ($Gar_EdicionClave === null): ?>
+                            <?php if (!$Lb_TieneClave): ?>
                                 Sin contraseña local: hoy solo puede ingresar con Microsoft.
                             <?php else: ?>
-                                Asignada el <?= e(date('d M Y', strtotime((string) $Gar_EdicionClave['actualizada_at']))) ?><?= !empty($Gar_EdicionClave['actualizada_by']) ? ' · ' . e((string) $Gar_EdicionClave['actualizada_by']) : '' ?>.
-                                <?php if ($Gar_EdicionClave['bloqueado_hasta'] !== null): ?>
+                                Asignada el <?= e(date('d M Y', strtotime((string) $Gar_Edicion['clave_actualizada_at']))) ?><?= !empty($Gar_Edicion['clave_actualizada_by']) ? ' · ' . e((string) $Gar_Edicion['clave_actualizada_by']) : '' ?>.
+                                <?php if ($Gar_Edicion['clave_bloqueada_hasta'] !== null): ?>
                                     <b>Bloqueada por intentos fallidos</b>; asignar una nueva la desbloquea.
                                 <?php endif; ?>
                             <?php endif; ?>
@@ -949,7 +743,7 @@ vista_encabezado([
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="fx-etiqueta" for="clave">
-                                <?= $Lb_EsNuevo || $Gar_EdicionClave === null ? 'Contraseña' : 'Nueva contraseña' ?>
+                                <?= $Lb_EsNuevo || !$Lb_TieneClave ? 'Contraseña' : 'Nueva contraseña' ?>
                                 <span class="fx-nota">(opcional)</span>
                             </label>
                             <input class="fx-campo" type="password" id="clave" name="clave"
@@ -966,7 +760,7 @@ vista_encabezado([
                         <?= $Lb_EsNuevo ? 'solo podrá ingresar con Microsoft' : 'la contraseña actual no cambia' ?>.
                     </p>
 
-                    <?php if (!$Lb_EsNuevo && $Gar_EdicionClave !== null && $Gi_Editando !== (int) $Gar_Usuario['usuario_id']): ?>
+                    <?php if (!$Lb_EsNuevo && $Lb_TieneClave && $Gi_Editando !== (int) $Gar_Usuario['usuario_id']): ?>
                         <label class="fx-casilla mt-2">
                             <input type="checkbox" name="quitar_clave" value="1">
                             <span>
@@ -1029,7 +823,7 @@ vista_encabezado([
                             <div>
                                 <form method="post" action="/admin/usuarios.php"
                                       <?= (int) $Gar_Edicion['is_activo'] === 1
-                                          ? 'data-confirmar="¿Dar de baja a este usuario? Deja de poder ingresar; el histórico se conserva."'
+                                          ? 'data-confirmar="¿Dar de baja a este usuario? Deja de poder ingresar; queda registrado en la auditoría."'
                                           : '' ?>>
                                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                     <input type="hidden" name="accion" value="cambiar_estado">
@@ -1040,7 +834,7 @@ vista_encabezado([
                                     </button>
                                 </form>
                                 <p class="fx-nota mt-1.5 mb-0">
-                                    La baja es lógica: deja de poder ingresar y el histórico se conserva.
+                                    La baja es lógica: deja de poder ingresar y el cambio queda en la auditoría.
                                 </p>
                             </div>
 

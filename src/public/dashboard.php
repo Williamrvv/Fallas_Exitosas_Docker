@@ -10,6 +10,7 @@
  *             incorporan cuando el flujo de análisis alimente la base.
  *             2026-09-25 Rediseño visual: rejilla propia en lugar de la de
  *             Bootstrap e íconos SVG en línea. Las consultas no cambian.
+ *             2026-09-28 Los roles definidos se cuentan desde AUTH_ROLES.
  */
 
 declare(strict_types=1);
@@ -26,7 +27,7 @@ $Gar_Conteo = db_fila(
      FROM fx.usuario'
 ) ?? ['activos' => 0, 'total' => 0];
 
-$Gi_Roles = (int) (db_fila('SELECT COUNT(*) AS total FROM fx.rol WHERE is_activo = 1')['total'] ?? 0);
+$Gi_Roles = count(AUTH_ROLES);
 
 vista_encabezado([
     'titulo'    => 'Panel ejecutivo',

@@ -2,11 +2,15 @@
 /**
  * Fallas Exitosas · Ingreso con correo y contraseña.
  *
- * Propósito : Autenticar contra la credencial local (fx.usuario_clave) y abrir
- *             la sesión con la misma autorización que usa Entra ID.
+ * Propósito : Autenticar contra la credencial local (columnas clave_ de
+ *             fx.usuario) y abrir la sesión con la misma autorización que usa
+ *             Entra ID.
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-25
  * Bitácora  : 2026-09-25 Versión inicial.
+ *             2026-09-28 Comprobación final ajustada al esquema de dos tablas.
+ *
+ *             2026-09-28 La credencial local vive en fx.usuario.
  *
  * Secuencia : CSRF → credencial → usuario activo → sesión.
  */

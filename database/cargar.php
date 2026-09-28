@@ -194,39 +194,31 @@ $Gar_Resumen = $Go_Conexion->query(
          (SELECT COUNT(*) FROM sys.tables AS t
               INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
           WHERE s.name = 'fx')                 AS tablas,
-         (SELECT COUNT(*) FROM fx.rol)         AS roles,
-         (SELECT COUNT(*) FROM fx.permiso)     AS permisos,
-         (SELECT COUNT(*) FROM fx.pais)        AS paises,
-         (SELECT COUNT(*) FROM fx.usuario)     AS usuarios"
+         (SELECT COUNT(*) FROM fx.usuario)     AS usuarios,
+         (SELECT COUNT(*) FROM fx.usuario
+          WHERE rol = 'administrador' AND is_activo = 1) AS administradores"
 )->fetch(PDO::FETCH_ASSOC);
 
 decir(sprintf(
-    '  tablas fx: %d | roles: %d | permisos: %d | países: %d | usuarios: %d',
+    '  tablas fx: %d | usuarios: %d | administradores activos: %d',
     (int) $Gar_Resumen['tablas'],
-    (int) $Gar_Resumen['roles'],
-    (int) $Gar_Resumen['permisos'],
-    (int) $Gar_Resumen['paises'],
-    (int) $Gar_Resumen['usuarios']
+    (int) $Gar_Resumen['usuarios'],
+    (int) $Gar_Resumen['administradores']
 ));
 
 $Gar_Admin = $Go_Conexion->query(
-    "SELECT TOP 1
-         u.correo                AS correo,
-         r.nombre                AS rol,
-         (SELECT COUNT(*) FROM fx.v_usuario_pais AS vp
-          WHERE vp.usuario_id = u.usuario_id) AS paises
-     FROM fx.usuario AS u
-         INNER JOIN fx.usuario_rol AS ur ON ur.usuario_id = u.usuario_id
-         INNER JOIN fx.rol AS r ON r.rol_id = ur.rol_id
-     ORDER BY u.usuario_id"
+    "SELECT TOP 1 correo, rol, paises
+     FROM fx.usuario
+     WHERE rol = 'administrador'
+     ORDER BY usuario_id"
 )->fetch(PDO::FETCH_ASSOC);
 
 if ($Gar_Admin !== false) {
     decir(sprintf(
-        '  administrador: %s · %s · %d países visibles',
+        '  administrador: %s · %s · países: %s',
         (string) $Gar_Admin['correo'],
         (string) $Gar_Admin['rol'],
-        (int) $Gar_Admin['paises']
+        (string) $Gar_Admin['paises'] === '*' ? 'todos los habilitados' : (string) $Gar_Admin['paises']
     ));
 }
 

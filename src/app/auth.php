@@ -16,6 +16,84 @@
 declare(strict_types=1);
 
 /**
+ * Roles del sistema. La clave es el valor de fx.usuario.rol.
+ * Si se agrega uno, ampliar también ck_usuario_rol en la base.
+ */
+const AUTH_ROLES = [
+    'administrador'       => ['nombre' => 'Administrador',           'descripcion' => 'Acceso completo, incluida la administración de usuarios y catálogos.'],
+    'gerente_regional'    => ['nombre' => 'Gerente Regional',        'descripcion' => 'Visibilidad de todos los países habilitados; no administra usuarios.'],
+    'operaciones'         => ['nombre' => 'Operaciones',             'descripcion' => 'Gestión de casos, alertas y seguimiento dentro de su ámbito.'],
+    'experiencia_cliente' => ['nombre' => 'Experiencia del Cliente', 'descripcion' => 'Análisis de comentarios, causas y tendencias dentro de su ámbito.'],
+    'consulta'            => ['nombre' => 'Consulta',                'descripcion' => 'Solo lectura de panel y tendencias dentro de su ámbito.'],
+];
+
+/**
+ * Matriz de permisos aprobada el 2026-09-24. Niveles: completo | ver.
+ * Un permiso ausente no concede acceso. Pendiente de confirmar con
+ * Operaciones: 'ver' sobre catalogos para Operaciones y Experiencia del
+ * Cliente, y 'ver' sobre casos para Gerente Regional.
+ * El historial de esta matriz es el de Git.
+ */
+const AUTH_PERMISOS = [
+    'administrador' => [
+        'dashboard' => 'completo', 'comentarios_ia' => 'completo', 'casos'     => 'completo', 'alertas'  => 'completo',
+        'exportar'  => 'completo', 'catalogos'      => 'completo', 'usuarios'  => 'completo', 'auditoria' => 'completo',
+    ],
+    'gerente_regional' => [
+        'dashboard' => 'completo', 'comentarios_ia' => 'ver',      'casos'     => 'ver',      'alertas'  => 'completo',
+        'exportar'  => 'completo', 'auditoria'      => 'ver',
+    ],
+    'operaciones' => [
+        'dashboard' => 'completo', 'comentarios_ia' => 'completo', 'casos'     => 'completo', 'alertas'  => 'completo',
+        'exportar'  => 'completo', 'catalogos'      => 'ver',
+    ],
+    'experiencia_cliente' => [
+        'dashboard' => 'completo', 'comentarios_ia' => 'completo', 'casos'     => 'completo', 'alertas'  => 'completo',
+        'exportar'  => 'completo', 'catalogos'      => 'ver',
+    ],
+    'consulta' => [
+        'dashboard' => 'ver',      'comentarios_ia' => 'ver',
+    ],
+];
+
+/**
+ * Países habilitados, con el código ISO-3 que usa TSD.
+ * El Salvador (SLV) entra en la fase 2: agregarlo aquí al habilitarlo.
+ */
+const AUTH_PAISES = [
+    'CRI' => 'Costa Rica',
+    'GTM' => 'Guatemala',
+    'NIC' => 'Nicaragua',
+    'PER' => 'Perú',
+];
+
+/** Valor de fx.usuario.paises que concede todos los países habilitados. */
+const AUTH_TODOS_LOS_PAISES = '*';
+
+/**
+ * Convierte el valor guardado en fx.usuario.paises en la lista de países
+ * habilitados. Un código que ya no esté en AUTH_PAISES no concede acceso.
+ *
+ * @return string[] Códigos ISO-3 ordenados.
+ */
+function auth_paises_efectivos(string $Pv_Paises_i): array
+{
+    if (trim($Pv_Paises_i) === AUTH_TODOS_LOS_PAISES) {
+        return array_keys(AUTH_PAISES);
+    }
+
+    $Lar_Codigos = array_filter(
+        array_map('trim', explode(',', strtoupper($Pv_Paises_i))),
+        static fn (string $Lv_Codigo): bool => isset(AUTH_PAISES[$Lv_Codigo])
+    );
+
+    $Lar_Codigos = array_values(array_unique($Lar_Codigos));
+    sort($Lar_Codigos);
+
+    return $Lar_Codigos;
+}
+
+/**
  * Busca al usuario autorizado a partir de los claims de Entra.
  *
  * El enlace preferente es `oid` (identidad inmutable). Si todavía no está
@@ -75,7 +153,7 @@ function auth_resolver_usuario(array $Par_Claims_i): ?array
 }
 
 /**
- * Valida correo y contraseña contra la credencial local (fx.usuario_clave).
+ * Valida correo y contraseña contra la credencial local de fx.usuario.
  *
  * Tras 5 intentos fallidos la cuenta queda bloqueada 15 minutos. Si el correo
  * no tiene credencial se verifica igual contra un hash de relleno, para que el
@@ -88,12 +166,10 @@ function auth_validar_clave(string $Pv_Correo_i, string $Pv_Clave_i): array
     $Lv_HashRelleno = '$2y$10$OA/1pLgNtdn0g.X9GfR8deusc1X4vKgAqm0H.qfYc3XF3WdQsb8Ya';
 
     $Lar_Fila = db_fila(
-        'SELECT u.usuario_id, u.entra_oid, u.correo, u.nombre, u.is_activo,
-                c.clave_hash,
-                CASE WHEN c.bloqueado_hasta > SYSUTCDATETIME() THEN 1 ELSE 0 END AS is_bloqueado
-         FROM fx.usuario AS u
-             INNER JOIN fx.usuario_clave AS c ON c.usuario_id = u.usuario_id
-         WHERE LOWER(u.correo) = :correo',
+        'SELECT usuario_id, entra_oid, correo, nombre, is_activo, clave_hash,
+                CASE WHEN clave_bloqueada_hasta > SYSUTCDATETIME() THEN 1 ELSE 0 END AS is_bloqueado
+         FROM fx.usuario
+         WHERE LOWER(correo) = :correo AND clave_hash IS NOT NULL',
         [':correo' => strtolower(trim($Pv_Correo_i))]
     );
 
@@ -114,11 +190,11 @@ function auth_validar_clave(string $Pv_Correo_i, string $Pv_Clave_i): array
     if (!password_verify($Pv_Clave_i, $Lv_Hash)) {
         // Un bloqueo ya vencido reinicia el conteo; al quinto fallo se bloquea 15 min.
         db_ejecutar(
-            'UPDATE fx.usuario_clave
-             SET intentos_fallidos = CASE WHEN bloqueado_hasta IS NOT NULL THEN 1
-                                          ELSE intentos_fallidos + 1 END,
-                 bloqueado_hasta   = CASE WHEN bloqueado_hasta IS NULL AND intentos_fallidos + 1 >= 5
-                                          THEN DATEADD(MINUTE, 15, SYSUTCDATETIME()) END
+            'UPDATE fx.usuario
+             SET clave_intentos        = CASE WHEN clave_bloqueada_hasta IS NOT NULL THEN 1
+                                              ELSE clave_intentos + 1 END,
+                 clave_bloqueada_hasta = CASE WHEN clave_bloqueada_hasta IS NULL AND clave_intentos + 1 >= 5
+                                              THEN DATEADD(MINUTE, 15, SYSUTCDATETIME()) END
              WHERE usuario_id = :usuario_id',
             [':usuario_id' => $Li_UsuarioId]
         );
@@ -132,8 +208,8 @@ function auth_validar_clave(string $Pv_Correo_i, string $Pv_Clave_i): array
         : $Lv_Hash;
 
     db_ejecutar(
-        'UPDATE fx.usuario_clave
-         SET intentos_fallidos = 0, bloqueado_hasta = NULL, clave_hash = :clave_hash
+        'UPDATE fx.usuario
+         SET clave_intentos = 0, clave_bloqueada_hasta = NULL, clave_hash = :clave_hash
          WHERE usuario_id = :usuario_id',
         [':clave_hash' => $Lv_HashVigente, ':usuario_id' => $Li_UsuarioId]
     );
@@ -166,7 +242,7 @@ function auth_usuario_actual(): array
     }
 
     $Lar_Base = db_fila(
-        'SELECT usuario_id, correo, nombre, puesto, is_activo, ultimo_ingreso_at
+        'SELECT usuario_id, correo, nombre, puesto, rol, paises, is_activo, ultimo_ingreso_at
          FROM fx.usuario WHERE usuario_id = :usuario_id',
         [':usuario_id' => $Li_UsuarioId]
     );
@@ -178,34 +254,18 @@ function auth_usuario_actual(): array
         exit;
     }
 
-    $Lar_Roles = db_filas(
-        'SELECT r.codigo AS codigo, r.nombre AS nombre
-         FROM fx.usuario_rol AS ur
-             INNER JOIN fx.rol AS r ON r.rol_id = ur.rol_id AND r.is_activo = 1
-         WHERE ur.usuario_id = :usuario_id
-         ORDER BY r.orden',
-        [':usuario_id' => $Li_UsuarioId]
-    );
+    // Un rol desconocido no concede nada: falla cerrado.
+    $Lv_Rol = (string) $Lar_Base['rol'];
 
-    $Lar_Permisos = [];
-
-    foreach (db_filas(
-        'SELECT permiso_codigo, nivel_acceso FROM fx.v_usuario_permiso WHERE usuario_id = :usuario_id',
-        [':usuario_id' => $Li_UsuarioId]
-    ) as $Lar_Fila) {
-        $Lar_Permisos[$Lar_Fila['permiso_codigo']] = $Lar_Fila['nivel_acceso'];
-    }
-
-    $Lar_Paises = db_filas(
-        'SELECT pais_codigo FROM fx.v_usuario_pais WHERE usuario_id = :usuario_id ORDER BY pais_codigo',
-        [':usuario_id' => $Li_UsuarioId]
-    );
-
-    $Sar_Usuario = $Lar_Base + [
-        'roles'    => $Lar_Roles,
-        'permisos' => $Lar_Permisos,
-        'paises'   => array_column($Lar_Paises, 'pais_codigo'),
-    ];
+    // array_merge y no +: 'paises' ya viene de la consulta y debe reemplazarse.
+    $Sar_Usuario = array_merge($Lar_Base, [
+        // Se conserva la forma de lista que usan view.php y dashboard.php.
+        'roles'    => isset(AUTH_ROLES[$Lv_Rol])
+            ? [['codigo' => $Lv_Rol, 'nombre' => AUTH_ROLES[$Lv_Rol]['nombre']]]
+            : [],
+        'permisos' => AUTH_PERMISOS[$Lv_Rol] ?? [],
+        'paises'   => auth_paises_efectivos((string) $Lar_Base['paises']),
+    ]);
 
     return $Sar_Usuario;
 }
