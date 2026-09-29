@@ -13,6 +13,7 @@
  *                        /assets/app.css y los íconos a SVG en línea. El menú
  *                        lateral se convierte en pestañas superiores. La lógica
  *                        de permisos y las firmas de las funciones no cambian.
+ *             2026-09-28 «Catálogos y reglas» apunta a /admin/catalogos.php.
  */
 
 declare(strict_types=1);
@@ -108,7 +109,7 @@ function vista_menu(): array
         ['clave' => 'alertas',        'texto' => 'Alertas',               'icono' => 'alertas',     'url' => '#',                    'permiso' => 'alertas'],
         ['clave' => 'administracion', 'texto' => 'Administración',        'icono' => '',            'url' => '',                     'permiso' => ''],
         ['clave' => 'usuarios',       'texto' => 'Usuarios y roles',      'icono' => 'usuarios',    'url' => '/admin/usuarios.php',  'permiso' => 'usuarios'],
-        ['clave' => 'catalogos',      'texto' => 'Catálogos y reglas',    'icono' => 'catalogos',   'url' => '#',                    'permiso' => 'catalogos'],
+        ['clave' => 'catalogos',      'texto' => 'Catálogos y reglas',    'icono' => 'catalogos',   'url' => '/admin/catalogos.php', 'permiso' => 'catalogos'],
         ['clave' => 'auditoria',      'texto' => 'Auditoría',             'icono' => 'auditoria',   'url' => '#',                    'permiso' => 'auditoria'],
     ];
 }

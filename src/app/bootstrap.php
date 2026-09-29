@@ -7,6 +7,7 @@
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-24
  * Bitácora  : 2026-09-24 Versión inicial.
+ *             2026-09-28 Carga el módulo de catálogos y reglas (PB-20).
  */
 
 declare(strict_types=1);
@@ -17,6 +18,7 @@ require_once __DIR__ . '/audit.php';
 require_once __DIR__ . '/session.php';
 require_once __DIR__ . '/oidc.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/mantenimiento.php';
 require_once __DIR__ . '/view.php';
 
 date_default_timezone_set('America/Costa_Rica');

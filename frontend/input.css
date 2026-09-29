@@ -7,6 +7,7 @@
    Fecha     : 2026-09-25
    Bitácora  : 2026-09-25 Reemplaza a Bootstrap 5 y a assets/styles.css.
                Marca ANC, Poppins autoalojada e íconos SVG en línea.
+               2026-09-28 Polaridad de categorías y fila de grupo (PB-20).
 
    NO editar src/public/assets/app.css a mano: se regenera y se pierde.
 
@@ -385,6 +386,17 @@
   .fx-estado-activo::before { background: #00945E; }
   .fx-estado-inactivo { @apply text-tenue; }
   .fx-estado-inactivo::before { background: #C2CAD3; }
+
+  /* Polaridad de una categoría: texto oscuro y punto de color (el naranja y el
+     verde no alcanzan contraste AA como texto pequeño sobre blanco). */
+  .fx-polaridad { @apply inline-flex items-center gap-1.5 text-[11px] font-semibold text-tinta; }
+  .fx-polaridad::before { content: ""; @apply size-2 rounded-full; }
+  .fx-polaridad-negativa::before     { background: #E94E1B; }
+  .fx-polaridad-positiva::before     { background: #00945E; }
+  .fx-polaridad-sin_feedback::before { background: #C2CAD3; }
+
+  /* Fila que agrupa a las siguientes (categoría principal). */
+  .fx-fila-grupo td { background: #F8F9FA; }
 
   /* --- Formularios --------------------------------------------------------- */
   .fx-etiqueta { @apply block text-xs font-medium text-tinta mb-1.5; }
