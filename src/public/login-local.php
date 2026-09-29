@@ -8,8 +8,6 @@
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-25
  * Bitácora  : 2026-09-25 Versión inicial.
- *             2026-09-28 Comprobación final ajustada al esquema de dos tablas.
- *
  *             2026-09-28 La credencial local vive en fx.usuario.
  *
  * Secuencia : CSRF → credencial → usuario activo → sesión.
