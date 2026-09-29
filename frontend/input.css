@@ -10,6 +10,11 @@
                2026-09-28 Polaridad de categorías y fila de grupo (PB-20).
                2026-09-28 Administración como entrada propia; se retira el
                           rótulo de grupo de las pestañas superiores.
+               2026-09-29 Tema oscuro: los colores se declaran una sola vez
+                          con light-dark(claro, oscuro). Los colores fijos de
+                          los componentes pasan a usar esas variables.
+               2026-09-29 Clases fx-solo-claro / fx-solo-oscuro (logo e ícono
+                          del botón de tema).
 
    NO editar src/public/assets/app.css a mano: se regenera y se pierde.
 
@@ -38,15 +43,23 @@
   --color-anc-morado-inn:   #78368C;
   --color-anc-morado-efi:   #A5125B;
 
-  /* Superficies y texto. Grises de soporte, no colores de marca. */
-  --color-lienzo:      #F8F9FA;
-  --color-superficie:  #FFFFFF;
-  --color-tinta:       #1B2733;
-  --color-apagado:     #5F6B77;
-  --color-tenue:       #66727E;
-  --color-linea:       #E7EBF0;
-  --color-linea-sutil: #EEF1F5;
-  --color-control:     #87939F;
+  /* Superficies y texto. light-dark(claro, oscuro): el navegador usa uno u
+     otro según el tema activo. */
+  --color-lienzo:      light-dark(#F8F9FA, #121A22);
+  --color-superficie:  light-dark(#FFFFFF, #1B2733);
+  --color-tinta:       light-dark(#1B2733, #E7EBF0);
+  --color-apagado:     light-dark(#5F6B77, #AEB8C2);
+  --color-tenue:       light-dark(#66727E, #929EAA);
+  --color-linea:       light-dark(#E7EBF0, #2E3C4A);
+  --color-linea-sutil: light-dark(#EEF1F5, #25323F);
+  --color-control:     light-dark(#87939F, #5F6B77);
+
+  /* Texto de acento. Sobre fondo oscuro el azul, el verde y el morado ANC no
+     se leen, así que en oscuro se usa su versión clara. Los fondos de marca
+     (botón principal, avatar) no cambian. */
+  --color-acento:        light-dark(#005CB9, #38A8E0);
+  --color-acento-verde:  light-dark(#006937, #3AAA35);
+  --color-acento-morado: light-dark(#78368C, #D0B9D7);
 
   /* Escala tipográfica declarada: 12 / 14 / 16 / 20 / 28 / 40 */
   --text-xs:   0.75rem;
@@ -77,6 +90,16 @@
 @layer base {
   html { -webkit-text-size-adjust: 100%; }
 
+  /* Tema: data-tema en <html> lo pone assets/app.js (claro u oscuro, guardado
+     en el equipo). Sin JavaScript sigue al sistema operativo. */
+  :root                     { color-scheme: light dark; }
+  :root[data-tema="claro"]  { color-scheme: light; }
+  :root[data-tema="oscuro"] { color-scheme: dark; }
+
+  /* Elementos que solo se muestran en un tema: logo e ícono del botón. */
+  :root[data-tema="oscuro"] .fx-solo-claro,
+  :root:not([data-tema="oscuro"]) .fx-solo-oscuro { display: none; }
+
   body {
     @apply bg-lienzo text-tinta font-sans text-sm font-normal antialiased;
     margin: 0;
@@ -97,7 +120,7 @@
   select:focus-visible,
   textarea:focus-visible,
   [tabindex]:focus-visible {
-    outline: 3px solid #005CB9;
+    outline: 3px solid var(--color-acento);
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -155,9 +178,9 @@
            text-sm font-medium text-apagado no-underline
            border-b-2 border-transparent transition-colors;
   }
-  .fx-pestana:hover { @apply text-anc-azul; }
+  .fx-pestana:hover { @apply text-acento; }
   .fx-pestana[aria-current="page"] {
-    @apply text-anc-azul font-semibold border-anc-azul;
+    @apply text-acento font-semibold border-acento;
   }
   .fx-pestana svg { @apply size-4 shrink-0; }
   /* Administración va al final, separada del trabajo diario. */
@@ -171,7 +194,7 @@
   .fx-menu-movil details { @apply mx-auto; }
   .fx-menu-movil summary {
     @apply flex cursor-pointer list-none items-center gap-2 px-4 py-2.5
-           text-sm font-semibold text-anc-azul;
+           text-sm font-semibold text-acento;
     min-height: 48px;
   }
   .fx-menu-movil summary::-webkit-details-marker { display: none; }
@@ -232,7 +255,7 @@
            px-3 py-1 text-xs font-medium text-apagado whitespace-nowrap;
   }
   .fx-pastilla-activa {
-    @apply text-anc-azul;
+    @apply text-acento;
     border-color: rgba(0, 92, 185, .30);
     background: rgba(0, 92, 185, .10);
   }
@@ -250,7 +273,7 @@
   .fx-btn-primario:hover {
     @apply border-anc-verde-oscuro bg-anc-verde-oscuro text-white;
   }
-  .fx-btn-neutro { @apply bg-superficie border-control text-[#48535F]; }
+  .fx-btn-neutro { @apply bg-superficie border-control text-apagado; }
   .fx-btn-neutro:hover { @apply bg-lienzo text-tinta; }
   .fx-btn-bloque { @apply w-full; }
   .fx-btn:disabled { @apply opacity-50 cursor-not-allowed; }
@@ -293,10 +316,10 @@
   .fx-kpi-texto { @apply text-xs text-apagado mt-1.5; }
 
   /* Solo se aplican al recuadro del ícono, nunca a la tarjeta completa. */
-  .fx-tinte-azul    { background: rgba(0, 92, 185, .12);   color: #005CB9; }
-  .fx-tinte-verde   { background: rgba(0, 148, 94, .12);   color: #006937; }
-  .fx-tinte-morado  { background: rgba(120, 54, 140, .12); color: #78368C; }
-  .fx-tinte-celeste { background: rgba(56, 168, 224, .15); color: #005CB9; }
+  .fx-tinte-azul    { background: rgba(0, 92, 185, .12);   color: var(--color-acento); }
+  .fx-tinte-verde   { background: rgba(0, 148, 94, .12);   color: var(--color-acento-verde); }
+  .fx-tinte-morado  { background: rgba(120, 54, 140, .12); color: var(--color-acento-morado); }
+  .fx-tinte-celeste { background: rgba(56, 168, 224, .15); color: var(--color-acento); }
 
   /* --- Aviso destacado ---------------------------------------------------- */
   .fx-aviso {
@@ -306,12 +329,12 @@
   }
   .fx-aviso-icono {
     @apply flex items-center justify-center rounded-[10px] shrink-0
-           bg-superficie border border-linea text-anc-azul;
+           bg-superficie border border-linea text-acento;
     width: 40px; height: 40px;
   }
   .fx-aviso-icono svg { @apply size-5; }
-  .fx-aviso-texto   { @apply text-xs leading-relaxed text-[#3A4550]; }
-  .fx-aviso-texto b { @apply text-anc-verde-oscuro font-semibold; }
+  .fx-aviso-texto   { @apply text-xs leading-relaxed text-tinta; }
+  .fx-aviso-texto b { @apply text-acento-verde font-semibold; }
 
   /* --- Alertas en línea ---------------------------------------------------- */
   .fx-alerta {
@@ -319,18 +342,18 @@
   }
   .fx-alerta svg { @apply size-4 shrink-0; margin-top: 1px; }
   .fx-alerta-info {
-    color: #005CB9;
+    color: var(--color-acento);
     border-color: rgba(0, 92, 185, .20);
     background: rgba(0, 92, 185, .08);
   }
   .fx-alerta-error {
-    color: #3A4550;
+    color: var(--color-tinta);
     border-color: rgba(233, 78, 27, .25);
     background: rgba(233, 78, 27, .09);
   }
   .fx-alerta-error svg { @apply text-anc-naranja; }
   .fx-alerta-ok {
-    color: #006937;
+    color: var(--color-acento-verde);
     border-color: rgba(0, 148, 94, .25);
     background: rgba(0, 148, 94, .10);
   }
@@ -345,7 +368,7 @@
     min-width: 860px;
   }
   .fx-tabla th {
-    @apply sticky top-0 z-10 bg-[#FCFDFE] text-left align-middle
+    @apply sticky top-0 z-10 bg-superficie text-left align-middle
            px-3.5 py-3 border-b border-linea
            text-[10px] font-semibold uppercase tracking-wide text-tenue;
   }
@@ -358,7 +381,7 @@
   .fx-nombre     { @apply font-medium text-tinta; }
   .fx-secundario { @apply text-[11px] text-apagado; }
   .fx-ficha      { @apply block no-underline text-inherit; }
-  .fx-ficha:hover .fx-nombre { @apply text-anc-azul; }
+  .fx-ficha:hover .fx-nombre { @apply text-acento; }
 
   /* --- Distintivos de rol, ámbito y estado -------------------------------- */
   .fx-grupo-tags { @apply inline-flex flex-wrap items-center gap-1; }
@@ -366,25 +389,25 @@
     @apply inline-flex rounded-full px-2.5 py-0.5
            text-[11px] font-semibold whitespace-nowrap;
   }
-  .fx-rol-administrador       { background: rgba(0, 92, 185, .12);   color: #005CB9; }
-  .fx-rol-gerente_regional    { background: rgba(120, 54, 140, .12); color: #78368C; }
-  .fx-rol-operaciones         { background: rgba(0, 148, 94, .12);   color: #006937; }
-  .fx-rol-experiencia_cliente { background: rgba(56, 168, 224, .16); color: #005CB9; }
-  .fx-rol-consulta            { background: #EEF1F5;                 color: #5B6672; }
+  .fx-rol-administrador       { background: rgba(0, 92, 185, .12);   color: var(--color-acento); }
+  .fx-rol-gerente_regional    { background: rgba(120, 54, 140, .12); color: var(--color-acento-morado); }
+  .fx-rol-operaciones         { background: rgba(0, 148, 94, .12);   color: var(--color-acento-verde); }
+  .fx-rol-experiencia_cliente { background: rgba(56, 168, 224, .16); color: var(--color-acento); }
+  .fx-rol-consulta            { background: var(--color-linea-sutil); color: var(--color-apagado); }
 
   .fx-ambito {
     @apply inline-flex rounded-md border border-linea bg-lienzo px-1.5 py-0.5
-           text-[10px] font-semibold text-[#48535F];
+           text-[10px] font-semibold text-apagado;
   }
   .fx-ambito-todo {
-    @apply text-anc-azul;
+    @apply text-acento;
     border-color: rgba(0, 92, 185, .25);
     background: rgba(0, 92, 185, .10);
   }
 
   .fx-estado { @apply inline-flex items-center gap-1.5 text-[11px] font-semibold; }
   .fx-estado::before { content: ""; @apply size-2 rounded-full; }
-  .fx-estado-activo { color: #006937; }
+  .fx-estado-activo { color: var(--color-acento-verde); }
   .fx-estado-activo::before { background: #00945E; }
   .fx-estado-inactivo { @apply text-tenue; }
   .fx-estado-inactivo::before { background: #C2CAD3; }
@@ -398,7 +421,7 @@
   .fx-polaridad-sin_feedback::before { background: #C2CAD3; }
 
   /* Fila que agrupa a las siguientes (categoría principal). */
-  .fx-fila-grupo td { background: #F8F9FA; }
+  .fx-fila-grupo td { background: var(--color-lienzo); }
 
   /* --- Formularios --------------------------------------------------------- */
   .fx-etiqueta { @apply block text-xs font-medium text-tinta mb-1.5; }
@@ -409,7 +432,7 @@
   }
   .fx-campo::placeholder { @apply text-tenue; }
   .fx-campo:focus {
-    @apply border-anc-azul outline-none;
+    @apply border-acento outline-none;
     box-shadow: 0 0 0 3px rgba(0, 92, 185, .15);
   }
   .fx-nota { @apply text-[11px] text-tenue; }
@@ -459,7 +482,7 @@
   .fx-modal-cab .sub { @apply text-xs text-apagado mt-0.5; }
   .fx-modal-cerrar {
     @apply flex items-center justify-center shrink-0 rounded-[10px]
-           text-[#48535F] no-underline;
+           text-apagado no-underline;
     width: 34px; height: 34px;
   }
   .fx-modal-cerrar:hover { @apply bg-lienzo text-tinta; }
@@ -467,7 +490,7 @@
   .fx-modal-cuerpo { @apply flex-1 min-h-0 overflow-y-auto px-6 py-5; }
   .fx-modal-pie {
     @apply flex justify-end gap-2 px-6 py-3.5
-           border-t border-linea-sutil bg-[#FCFDFE];
+           border-t border-linea-sutil bg-superficie;
   }
 
   /* --- Estado vacío ---------------------------------------------------------- */
@@ -481,6 +504,9 @@
   }
   .fx-ingreso-tarjeta {
     @apply relative w-full overflow-hidden border border-white/40 bg-superficie rounded-[18px] px-9 py-10;
+    /* Ingreso y errores: la tarjeta queda clara en cualquier tema (logo claro). */
+    color-scheme: light;
+    color: var(--color-tinta);
     max-width: 430px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
   }
