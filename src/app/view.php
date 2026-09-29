@@ -21,6 +21,9 @@
  *             2026-09-29 Las secciones de Administración pasan a una barra
  *                        agrupada sobre el título, hecha solo con componentes
  *                        ya compilados (tarjeta, pastillas, rótulo de grupo).
+ *             2026-09-29 Tema claro/oscuro: sigue al sistema operativo salvo
+ *                        que la persona elija uno (se guarda en la sesión).
+ *                        Selector en el encabezado y logo según el tema.
  */
 
 declare(strict_types=1);
@@ -82,6 +85,9 @@ function vista_icono_trazo(string $Pv_Nombre_i): string
         'salir'        => '<path d="M9 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3"/><path d="M15 16.5 19.5 12 15 7.5M19.5 12H9"/>',
         'ajustes'      => '<circle cx="12" cy="12" r="3"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.3a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3.5 13H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 3.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.4a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"/>',
         'sin-datos'    => '<path d="M4 4v16h16"/><rect x="7.5" y="13" width="3" height="4"/><rect x="13.5" y="9" width="3" height="8"/>',
+        'sol'          => '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+        'luna'         => '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+        'monitor'      => '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
         'sin-usuarios' => '<path d="M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"/><circle cx="9.5" cy="8" r="3.5"/><path d="M17 8h5"/>',
     ];
 
@@ -104,6 +110,38 @@ function icono(string $Pv_Nombre_i, ?string $Pv_Rotulo_i = null): string
         . ' stroke-linecap="round" stroke-linejoin="round"' . $Lv_Accesible . '>'
         . vista_icono_trazo($Pv_Nombre_i)
         . '</svg>';
+}
+
+/** Temas disponibles. «sistema» sigue al sistema operativo. */
+const VISTA_TEMAS = [
+    'sistema' => ['texto' => 'Automático', 'icono' => 'monitor'],
+    'claro'   => ['texto' => 'Claro',      'icono' => 'sol'],
+    'oscuro'  => ['texto' => 'Oscuro',     'icono' => 'luna'],
+];
+
+/** Tema elegido en esta sesión; sin elección, el del sistema operativo. */
+function vista_tema(): string
+{
+    $Lv_Tema = (string) ($_SESSION['tema'] ?? 'sistema');
+
+    return isset(VISTA_TEMAS[$Lv_Tema]) ? $Lv_Tema : 'sistema';
+}
+
+/**
+ * Logo institucional según el tema: «claro» es para fondo claro y «oscuro»
+ * para fondo oscuro. En automático decide el navegador.
+ */
+function vista_logo(): string
+{
+    $Lv_Claro  = '/assets/logos/anc-logo-claro.png';
+    $Lv_Oscuro = '/assets/logos/anc-logo-oscuro.png';
+
+    return match (vista_tema()) {
+        'claro'  => '<img src="' . $Lv_Claro . '" alt="Grupo ANC">',
+        'oscuro' => '<img src="' . $Lv_Oscuro . '" alt="Grupo ANC">',
+        default  => '<picture><source srcset="' . $Lv_Oscuro . '" media="(prefers-color-scheme: dark)">'
+            . '<img src="' . $Lv_Claro . '" alt="Grupo ANC"></picture>',
+    };
 }
 
 /** Menú principal: el trabajo diario. Cada entrada declara el permiso que la habilita. */
@@ -209,10 +247,11 @@ function vista_encabezado(array $Par_Pagina_i): void
         }
     }
 
-    $Lb_EnAdmin = $Lv_GrupoAdmin !== null;  
+    $Lb_EnAdmin = $Lv_GrupoAdmin !== null;
+    $Lv_Tema    = vista_tema();
     ?>
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es"<?= $Lv_Tema !== 'sistema' ? ' data-tema="' . e($Lv_Tema) . '"' : '' ?>>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -229,7 +268,7 @@ function vista_encabezado(array $Par_Pagina_i): void
 <header class="fx-encabezado">
     <div class="fx-encabezado-interno">
         <div class="fx-marca">
-            <img src="/assets/logos/anc-logo-claro.png" alt="Grupo ANC">
+            <?= vista_logo() ?>
             <div class="fx-marca-texto">
                 <div class="fx-marca-t1">Fallas Exitosas</div>
                 <div class="fx-marca-t2">Calidad de Servicio · Regional</div>
@@ -254,6 +293,24 @@ function vista_encabezado(array $Par_Pagina_i): void
                     <div class="fx-usuario-rol"><?= e($Lv_Rol) ?></div>
                 </div>
             </div>
+
+            <details class="fx-tema">
+                <summary class="fx-btn fx-btn-neutro fx-btn-sm fx-btn-icono"
+                         title="Tema: <?= e(VISTA_TEMAS[$Lv_Tema]['texto']) ?>">
+                    <?= icono(VISTA_TEMAS[$Lv_Tema]['icono']) ?>
+                    <span class="sr-only">Tema: <?= e(VISTA_TEMAS[$Lv_Tema]['texto']) ?>. Cambiar tema</span>
+                </summary>
+                <form class="fx-tema-panel" method="post" action="/tema.php">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                    <input type="hidden" name="volver" value="<?= e((string) ($_SERVER['REQUEST_URI'] ?? '/dashboard.php')) ?>">
+                    <?php foreach (VISTA_TEMAS as $Lv_Clave => $Lar_Opcion): ?>
+                        <button class="fx-tema-opcion" type="submit" name="tema" value="<?= e($Lv_Clave) ?>"
+                                aria-pressed="<?= $Lv_Clave === $Lv_Tema ? 'true' : 'false' ?>">
+                            <?= icono($Lar_Opcion['icono']) ?><?= e($Lar_Opcion['texto']) ?>
+                        </button>
+                    <?php endforeach; ?>
+                </form>
+            </details>
 
             <a class="fx-btn fx-btn-neutro fx-btn-sm" href="/logout.php" title="Cerrar sesión">
                 <?= icono('salir') ?><span class="fx-salir-texto">Cerrar sesión</span>

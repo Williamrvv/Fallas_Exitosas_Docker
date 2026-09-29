@@ -8,6 +8,7 @@
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-25
  * Bitácora  : 2026-09-25 Versión inicial.
+ *             2026-09-29 El menú de tema se cierra con Esc o al hacer clic fuera.
  *
  * Nota CSP  : Apache solo permite scripts de este mismo origen. Por eso no se
  *             usan onsubmit ni <script> en línea dentro de las páginas.
@@ -28,6 +29,23 @@ document.addEventListener('DOMContentLoaded', () => {
         Lo_Dialogo.close();
         Lo_Dialogo.showModal();
     });
+
+    // Menú de tema: sin JavaScript se cierra con su propio botón; con él,
+    // también con Esc o con un clic fuera.
+    const Lo_Tema = document.querySelector('details.fx-tema');
+    if (Lo_Tema) {
+        document.addEventListener('click', (Lo_Evento) => {
+            if (Lo_Tema.open && !Lo_Tema.contains(Lo_Evento.target)) {
+                Lo_Tema.open = false;
+            }
+        });
+        document.addEventListener('keydown', (Lo_Evento) => {
+            if (Lo_Evento.key === 'Escape' && Lo_Tema.open) {
+                Lo_Tema.open = false;
+                Lo_Tema.querySelector('summary').focus();
+            }
+        });
+    }
 
     // Confirmación previa para acciones sensibles.
     document.querySelectorAll('form[data-confirmar]').forEach((Lo_Formulario) => {
