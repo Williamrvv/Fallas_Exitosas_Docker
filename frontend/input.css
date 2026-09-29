@@ -8,8 +8,8 @@
    Bitácora  : 2026-09-25 Reemplaza a Bootstrap 5 y a assets/styles.css.
                Marca ANC, Poppins autoalojada e íconos SVG en línea.
                2026-09-28 Polaridad de categorías y fila de grupo (PB-20).
-               2026-09-28 Administración con menú lateral agrupado; se retira
-                          el rótulo de grupo de las pestañas superiores.
+               2026-09-28 Administración como entrada propia; se retira el
+                          rótulo de grupo de las pestañas superiores.
 
    NO editar src/public/assets/app.css a mano: se regenera y se pierde.
 
@@ -209,30 +209,7 @@
     max-width: 1560px;
   }
 
-  /* --- Administración: menú lateral agrupado ------------------------------
-     Base móvil: fila deslizable. En escritorio (sección 5) pasa a columna. */
-  .fx-admin { @apply grid items-start gap-5; }
-  .fx-admin-contenido { @apply min-w-0; }
-  .fx-admin-nav {
-    @apply flex gap-1.5 overflow-x-auto rounded-[14px] border border-linea bg-superficie p-1.5;
-    scrollbar-width: thin;
-  }
-  .fx-admin-grupo { @apply hidden; }
-  .fx-admin-enlace {
-    @apply flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-[10px]
-           px-3 py-2 text-xs font-medium text-[#48535F] no-underline transition-colors;
-  }
-  .fx-admin-enlace:hover { @apply bg-lienzo text-tinta; }
-  /* Riel azul a la izquierda: el mismo gesto de la fila activa y los indicadores. */
-  .fx-admin-enlace[aria-current="page"] {
-    @apply font-semibold text-anc-azul;
-    background: rgba(0, 92, 185, .08);
-    box-shadow: inset 3px 0 0 #005CB9;
-  }
-  .fx-admin-enlace[aria-disabled="true"] { @apply cursor-default text-tenue; }
-  .fx-admin-enlace[aria-disabled="true"]:hover { @apply bg-transparent text-tenue; }
-  .fx-admin-pronto { @apply text-[10px] font-medium text-tenue; }
-  .fx-miga { @apply mb-1 text-[10px] font-semibold uppercase tracking-wider text-tenue; }
+
   .fx-titulo-pagina {
     @apply flex flex-wrap items-end justify-between gap-4 mb-5;
   }
@@ -527,18 +504,6 @@
 /* ----------------------------------------------------------------------------
    5. Adaptaciones responsive del cascarón y componentes complejos
    -------------------------------------------------------------------------- */
-@media (min-width: 1024px) {
-  .fx-admin { grid-template-columns: 240px minmax(0, 1fr); }
-  .fx-admin-nav {
-    @apply sticky flex-col gap-0.5 overflow-visible p-3;
-    top: 128px;   /* encabezado (64) + pestañas (48) + aire */
-  }
-  .fx-admin-grupo {
-    @apply block px-3 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-wider text-tenue;
-  }
-  .fx-admin-grupo:first-child { @apply pt-1; }
-  .fx-admin-enlace { @apply whitespace-normal; }
-}
 
 @media (max-width: 639px) {
   .fx-encabezado-interno {

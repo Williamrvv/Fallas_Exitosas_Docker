@@ -8,7 +8,6 @@
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-25
  * Bitácora  : 2026-09-25 Versión inicial.
- *             2026-09-28 En móvil, el menú de Administración muestra la sección activa.
  *
  * Nota CSP  : Apache solo permite scripts de este mismo origen. Por eso no se
  *             usan onsubmit ni <script> en línea dentro de las páginas.
@@ -29,12 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
         Lo_Dialogo.close();
         Lo_Dialogo.showModal();
     });
-
-    // Menú de Administración en móvil (fila deslizable): llevar a la vista la sección activa.
-    const Lo_SeccionActiva = document.querySelector('.fx-admin-nav [aria-current="page"]');
-    if (Lo_SeccionActiva) {
-        Lo_SeccionActiva.scrollIntoView({ block: 'nearest', inline: 'center' });
-    }
 
     // Confirmación previa para acciones sensibles.
     document.querySelectorAll('form[data-confirmar]').forEach((Lo_Formulario) => {

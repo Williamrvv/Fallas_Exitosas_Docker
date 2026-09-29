@@ -18,6 +18,9 @@
  *                        principal, con menú lateral agrupado (usuarios,
  *                        catálogos, auditoría). El menú principal queda para el
  *                        trabajo diario.
+ *             2026-09-29 Las secciones de Administración pasan a una barra
+ *                        agrupada sobre el título, hecha solo con componentes
+ *                        ya compilados (tarjeta, pastillas, rótulo de grupo).
  */
 
 declare(strict_types=1);
@@ -174,18 +177,6 @@ function vista_admin_url(): ?string
     return null;
 }
 
-/** Indica si la página abrió el esqueleto de Administración (lo cierra vista_pie). */
-function vista_admin_abierta(?bool $Pb_Valor_i = null): bool
-{
-    static $Sb_Abierta = false;
-
-    if ($Pb_Valor_i !== null) {
-        $Sb_Abierta = $Pb_Valor_i;
-    }
-
-    return $Sb_Abierta;
-}
-
 /**
  * Imprime el encabezado completo con barra superior y pestañas.
  *
@@ -218,8 +209,7 @@ function vista_encabezado(array $Par_Pagina_i): void
         }
     }
 
-    $Lb_EnAdmin = $Lv_GrupoAdmin !== null;
-    vista_admin_abierta($Lb_EnAdmin);
+    $Lb_EnAdmin = $Lv_GrupoAdmin !== null;  
     ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -321,30 +311,31 @@ function vista_encabezado(array $Par_Pagina_i): void
 
 <main class="fx-lienzo" id="contenido">
     <?php if ($Lb_EnAdmin): ?>
-    <div class="fx-admin">
-        <nav class="fx-admin-nav" aria-label="Secciones de administración">
-            <?php foreach ($Lar_Admin as $Lv_Grupo => $Lar_Items): ?>
-                <span class="fx-admin-grupo"><?= e($Lv_Grupo) ?></span>
-                <?php foreach ($Lar_Items as $Lar_Item): ?>
-                    <?php if ($Lar_Item['url'] === ''): ?>
-                        <span class="fx-admin-enlace" aria-disabled="true">
-                            <?= e($Lar_Item['texto']) ?><span class="fx-admin-pronto">Próximamente</span>
-                        </span>
-                    <?php else: ?>
-                        <a class="fx-admin-enlace" href="<?= e($Lar_Item['url']) ?>"
-                           <?= $Lv_Activo === $Lar_Item['clave'] ? 'aria-current="page"' : '' ?>>
-                            <?= e($Lar_Item['texto']) ?>
-                        </a>
-                    <?php endif; ?>
+        <nav class="fx-tarjeta fx-tarjeta-cuerpo mb-4" aria-label="Secciones de administración">
+            <div class="flex flex-wrap gap-4">
+                <?php foreach ($Lar_Admin as $Lv_Grupo => $Lar_Items): ?>
+                    <div>
+                        <div class="fx-subtitulo-grupo mb-2"><?= e($Lv_Grupo) ?></div>
+                        <div class="flex flex-wrap gap-1.5">
+                            <?php foreach ($Lar_Items as $Lar_Item): ?>
+                                <?php if ($Lar_Item['url'] === ''): ?>
+                                    <span class="fx-pastilla" aria-disabled="true"><?= e($Lar_Item['texto']) ?> · próximamente</span>
+                                <?php else: ?>
+                                    <a class="fx-pastilla<?= $Lv_Activo === $Lar_Item['clave'] ? ' fx-pastilla-activa' : '' ?>"
+                                       href="<?= e($Lar_Item['url']) ?>"
+                                       <?= $Lv_Activo === $Lar_Item['clave'] ? 'aria-current="page"' : '' ?>><?= e($Lar_Item['texto']) ?></a>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 <?php endforeach; ?>
-            <?php endforeach; ?>
+            </div>
         </nav>
-        <div class="fx-admin-contenido">
     <?php endif; ?>
     <div class="fx-titulo-pagina">
         <div>
             <?php if ($Lb_EnAdmin): ?>
-                <div class="fx-miga">Administración · <?= e($Lv_GrupoAdmin) ?></div>
+                <div class="fx-subtitulo-grupo">Administración · <?= e($Lv_GrupoAdmin) ?></div>
             <?php endif; ?>
             <h1><?= e($Par_Pagina_i['titulo']) ?></h1>
             <?php if (!empty($Par_Pagina_i['subtitulo'])): ?>
@@ -361,10 +352,6 @@ function vista_encabezado(array $Par_Pagina_i): void
 /** Cierra la página. */
 function vista_pie(): void
 {
-    if (vista_admin_abierta()) {
-        // Cierra .fx-admin-contenido y .fx-admin abiertos en vista_encabezado().
-        echo "        </div>\n    </div>\n";
-    }
     ?>
     <footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-linea pt-4">
         <p class="fx-nota m-0">Sesión con cierre por inactividad a los 30 minutos.</p>
