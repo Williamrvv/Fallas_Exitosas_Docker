@@ -8,6 +8,8 @@
  * Autor     : William Valverde V.
  * Fecha     : 2026-09-28
  * Bitácora  : 2026-09-28 Versión inicial.
+ *             2026-09-28 Cada catálogo es una sección de Administración con su
+ *                        propio título; la navegación pasa al menú lateral.
  *
  * Seguridad : Ver requiere permiso sobre `catalogos`; crear, editar,
  *             habilitar o deshabilitar requiere permiso completo. La
@@ -210,22 +212,16 @@ function catalogos_campo(string $Pv_Campo_i, array $Par_Campo_i, string $Pv_Valo
 }
 
 vista_encabezado([
-    'titulo'    => 'Catálogos y reglas',
-    'subtitulo' => 'Parametrización de la clasificación y de las alertas · nada se borra, solo se deshabilita',
-    'activo'    => 'catalogos',
+    'titulo'    => $Gar_Spec['titulo'],
+    'subtitulo' => $Gar_Spec['descripcion'],
+    'activo'    => $Gv_Seccion,
     'usuario'   => $Gar_Usuario,
+    'acciones'  => $Gb_PuedeEditar
+        ? '<a class="fx-btn fx-btn-primario" href="' . e(catalogos_url(['nuevo' => '1'])) . '">'
+          . icono('agregar') . 'Agregar ' . e($Gar_Spec['singular']) . '</a>'
+        : '',
 ]);
 ?>
-
-<nav class="flex flex-wrap gap-1.5 mb-4" aria-label="Catálogos">
-    <?php foreach ($Gar_Entidades as $Lv_Clave => $Lar_Entidad): ?>
-        <a class="fx-pastilla<?= $Lv_Clave === $Gv_Seccion ? ' fx-pastilla-activa' : '' ?>"
-           href="/admin/catalogos.php?m=<?= e($Lv_Clave) ?>"
-           <?= $Lv_Clave === $Gv_Seccion ? 'aria-current="page"' : '' ?>>
-            <?= e($Lar_Entidad['titulo']) ?>
-        </a>
-    <?php endforeach; ?>
-</nav>
 
 <?php if ($Gv_Mensaje !== '' && !$Gb_ModalAbierto): ?>
     <div class="fx-alerta fx-alerta-<?= $Gv_Tipo === 'error' ? 'error' : ($Gv_Tipo === 'ok' ? 'ok' : 'info') ?> mb-4" role="alert">
@@ -242,17 +238,6 @@ vista_encabezado([
 <?php endif; ?>
 
 <div class="fx-tarjeta">
-    <div class="fx-tarjeta-cab">
-        <div>
-            <h2><?= e($Gar_Spec['titulo']) ?></h2>
-            <div class="sub"><?= e($Gar_Spec['descripcion']) ?></div>
-        </div>
-        <?php if ($Gb_PuedeEditar): ?>
-            <a class="fx-btn fx-btn-primario fx-btn-sm" href="<?= e(catalogos_url(['nuevo' => '1'])) ?>">
-                <?= icono('agregar') ?>Nuevo
-            </a>
-        <?php endif; ?>
-    </div>
 
     <div class="fx-tarjeta-cab">
         <div class="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
@@ -340,7 +325,7 @@ vista_encabezado([
                         No hay registros deshabilitados en <?= e(mb_strtolower($Gar_Spec['titulo'])) ?>.
                     <?php else: ?>
                         Todavía no hay <?= e(mb_strtolower($Gar_Spec['titulo'])) ?>.
-                        <?php if ($Gb_PuedeEditar): ?>Usá «Nuevo» para agregar el primero.<?php endif; ?>
+                        <?php if ($Gb_PuedeEditar): ?>Usá «Agregar <?= e($Gar_Spec['singular']) ?>» para crear el primero.<?php endif; ?>
                     <?php endif; ?>
                 </td></tr>
             <?php endif; ?>

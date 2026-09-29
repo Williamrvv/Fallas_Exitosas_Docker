@@ -14,6 +14,10 @@
  *                        lateral se convierte en pestañas superiores. La lógica
  *                        de permisos y las firmas de las funciones no cambian.
  *             2026-09-28 «Catálogos y reglas» apunta a /admin/catalogos.php.
+ *             2026-09-28 Administración pasa a ser una sola entrada del menú
+ *                        principal, con menú lateral agrupado (usuarios,
+ *                        catálogos, auditoría). El menú principal queda para el
+ *                        trabajo diario.
  */
 
 declare(strict_types=1);
@@ -99,19 +103,87 @@ function icono(string $Pv_Nombre_i, ?string $Pv_Rotulo_i = null): string
         . '</svg>';
 }
 
-/** Definición del menú. Cada entrada declara el permiso que la habilita. */
+/** Menú principal: el trabajo diario. Cada entrada declara el permiso que la habilita. */
 function vista_menu(): array
 {
     return [
-        ['clave' => 'dashboard',      'texto' => 'Panel ejecutivo',       'icono' => 'panel',       'url' => '/dashboard.php',       'permiso' => 'dashboard'],
-        ['clave' => 'casos',          'texto' => 'Casos y seguimiento',   'icono' => 'casos',       'url' => '#',                    'permiso' => 'casos'],
-        ['clave' => 'comentarios',    'texto' => 'Comentarios IA',        'icono' => 'comentarios', 'url' => '#',                    'permiso' => 'comentarios_ia'],
-        ['clave' => 'alertas',        'texto' => 'Alertas',               'icono' => 'alertas',     'url' => '#',                    'permiso' => 'alertas'],
-        ['clave' => 'administracion', 'texto' => 'Administración',        'icono' => '',            'url' => '',                     'permiso' => ''],
-        ['clave' => 'usuarios',       'texto' => 'Usuarios y roles',      'icono' => 'usuarios',    'url' => '/admin/usuarios.php',  'permiso' => 'usuarios'],
-        ['clave' => 'catalogos',      'texto' => 'Catálogos y reglas',    'icono' => 'catalogos',   'url' => '/admin/catalogos.php', 'permiso' => 'catalogos'],
-        ['clave' => 'auditoria',      'texto' => 'Auditoría',             'icono' => 'auditoria',   'url' => '#',                    'permiso' => 'auditoria'],
+        ['clave' => 'dashboard',   'texto' => 'Panel ejecutivo',     'icono' => 'panel',       'url' => '/dashboard.php', 'permiso' => 'dashboard'],
+        ['clave' => 'casos',       'texto' => 'Casos y seguimiento', 'icono' => 'casos',       'url' => '#',              'permiso' => 'casos'],
+        ['clave' => 'comentarios', 'texto' => 'Comentarios IA',      'icono' => 'comentarios', 'url' => '#',              'permiso' => 'comentarios_ia'],
+        ['clave' => 'alertas',     'texto' => 'Alertas',             'icono' => 'alertas',     'url' => '#',              'permiso' => 'alertas'],
     ];
+}
+
+/**
+ * Secciones de Administración, agrupadas por lo que la persona quiere hacer.
+ * La clave coincide con el `activo` de cada página. Sin url = todavía no existe.
+ */
+function vista_menu_admin(): array
+{
+    return [
+        'Acceso y trazabilidad' => [
+            ['clave' => 'usuarios',      'texto' => 'Usuarios y roles',             'url' => '/admin/usuarios.php',                 'permiso' => 'usuarios'],
+            ['clave' => 'auditoria',     'texto' => 'Auditoría',                    'url' => '',                                    'permiso' => 'auditoria'],
+        ],
+        'Clasificación' => [
+            ['clave' => 'categorias',    'texto' => 'Categorías',                   'url' => '/admin/catalogos.php?m=categorias',    'permiso' => 'catalogos'],
+            ['clave' => 'tipos',         'texto' => 'Tipos de experiencia',         'url' => '/admin/catalogos.php?m=tipos',         'permiso' => 'catalogos'],
+            ['clave' => 'palabras',      'texto' => 'Palabras y frases',            'url' => '/admin/catalogos.php?m=palabras',      'permiso' => 'catalogos'],
+        ],
+        'Alertas y seguimiento' => [
+            ['clave' => 'destinatarios', 'texto' => 'Responsables y destinatarios', 'url' => '/admin/catalogos.php?m=destinatarios', 'permiso' => 'catalogos'],
+            ['clave' => 'estados',       'texto' => 'Estados del caso',             'url' => '/admin/catalogos.php?m=estados',       'permiso' => 'catalogos'],
+            ['clave' => 'parametros',    'texto' => 'Parámetros por país',          'url' => '/admin/catalogos.php?m=parametros',    'permiso' => 'catalogos'],
+        ],
+    ];
+}
+
+/** Grupos de Administración que el usuario puede ver; los grupos vacíos no aparecen. */
+function vista_admin_visible(): array
+{
+    $Lar_Visibles = [];
+
+    foreach (vista_menu_admin() as $Lv_Grupo => $Lar_Items) {
+        $Lar_Items = array_values(array_filter(
+            $Lar_Items,
+            static fn (array $Par_Item_i): bool => auth_puede_ver($Par_Item_i['permiso'])
+        ));
+
+        if ($Lar_Items !== []) {
+            $Lar_Visibles[$Lv_Grupo] = $Lar_Items;
+        }
+    }
+
+    return $Lar_Visibles;
+}
+
+/**
+ * Dirección de la entrada «Administración»: la primera sección disponible.
+ * Null si el usuario no ve ninguna sección que ya exista.
+ */
+function vista_admin_url(): ?string
+{
+    foreach (vista_admin_visible() as $Lar_Items) {
+        foreach ($Lar_Items as $Lar_Item) {
+            if ($Lar_Item['url'] !== '') {
+                return $Lar_Item['url'];
+            }
+        }
+    }
+
+    return null;
+}
+
+/** Indica si la página abrió el esqueleto de Administración (lo cierra vista_pie). */
+function vista_admin_abierta(?bool $Pb_Valor_i = null): bool
+{
+    static $Sb_Abierta = false;
+
+    if ($Pb_Valor_i !== null) {
+        $Sb_Abierta = $Pb_Valor_i;
+    }
+
+    return $Sb_Abierta;
 }
 
 /**
@@ -125,7 +197,10 @@ function vista_encabezado(array $Par_Pagina_i): void
     $Lv_Activo   = (string) ($Par_Pagina_i['activo'] ?? '');
     $Lv_Rol      = $Lar_Usuario['roles'][0]['nombre'] ?? 'Sin rol';
     $Lar_Menu    = vista_menu();
+    $Lar_Admin   = vista_admin_visible();
+    $Lv_AdminUrl = vista_admin_url();
     $Lar_Activo  = null;
+    $Lv_GrupoAdmin = null;
 
     foreach ($Lar_Menu as $Lar_Item) {
         if ($Lar_Item['clave'] === $Lv_Activo) {
@@ -133,6 +208,18 @@ function vista_encabezado(array $Par_Pagina_i): void
             break;
         }
     }
+
+    foreach ($Lar_Admin as $Lv_Grupo => $Lar_Items) {
+        foreach ($Lar_Items as $Lar_Item) {
+            if ($Lar_Item['clave'] === $Lv_Activo) {
+                $Lv_GrupoAdmin = $Lv_Grupo;
+                $Lar_Activo    = ['icono' => 'ajustes', 'texto' => 'Administración · ' . $Lar_Item['texto']];
+            }
+        }
+    }
+
+    $Lb_EnAdmin = $Lv_GrupoAdmin !== null;
+    vista_admin_abierta($Lb_EnAdmin);
     ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -188,17 +275,19 @@ function vista_encabezado(array $Par_Pagina_i): void
 <nav class="fx-pestanas" aria-label="Secciones">
     <div class="fx-pestanas-interno">
         <?php foreach ($Lar_Menu as $Lar_Item): ?>
-            <?php if ($Lar_Item['permiso'] === ''): ?>
-                <?php if (auth_puede_ver('usuarios') || auth_puede_ver('catalogos') || auth_puede_ver('auditoria')): ?>
-                    <span class="fx-pestana-grupo"><?= e($Lar_Item['texto']) ?></span>
-                <?php endif; ?>
-            <?php elseif (auth_puede_ver($Lar_Item['permiso'])): ?>
+            <?php if (auth_puede_ver($Lar_Item['permiso'])): ?>
                 <a class="fx-pestana" href="<?= e($Lar_Item['url']) ?>"
                    <?= $Lv_Activo === $Lar_Item['clave'] ? 'aria-current="page"' : '' ?>>
                     <?= icono($Lar_Item['icono']) ?><?= e($Lar_Item['texto']) ?>
                 </a>
             <?php endif; ?>
         <?php endforeach; ?>
+        <?php if ($Lv_AdminUrl !== null): ?>
+            <a class="fx-pestana fx-pestana-admin" href="<?= e($Lv_AdminUrl) ?>"
+               <?= $Lb_EnAdmin ? 'aria-current="page"' : '' ?>>
+                <?= icono('ajustes') ?>Administración
+            </a>
+        <?php endif; ?>
     </div>
 </nav>
 
@@ -214,24 +303,49 @@ function vista_encabezado(array $Par_Pagina_i): void
         </summary>
         <nav aria-label="Secciones en móvil">
             <?php foreach ($Lar_Menu as $Lar_Item): ?>
-                <?php if ($Lar_Item['permiso'] === ''): ?>
-                    <?php if (auth_puede_ver('usuarios') || auth_puede_ver('catalogos') || auth_puede_ver('auditoria')): ?>
-                        <span class="fx-menu-movil-grupo"><?= e($Lar_Item['texto']) ?></span>
-                    <?php endif; ?>
-                <?php elseif (auth_puede_ver($Lar_Item['permiso'])): ?>
+                <?php if (auth_puede_ver($Lar_Item['permiso'])): ?>
                     <a href="<?= e($Lar_Item['url']) ?>"
                        <?= $Lv_Activo === $Lar_Item['clave'] ? 'aria-current="page"' : '' ?>>
                         <?= icono($Lar_Item['icono']) ?><span><?= e($Lar_Item['texto']) ?></span>
                     </a>
                 <?php endif; ?>
             <?php endforeach; ?>
+            <?php if ($Lv_AdminUrl !== null): ?>
+                <a href="<?= e($Lv_AdminUrl) ?>" <?= $Lb_EnAdmin ? 'aria-current="page"' : '' ?>>
+                    <?= icono('ajustes') ?><span>Administración</span>
+                </a>
+            <?php endif; ?>
         </nav>
     </details>
 </div>
 
 <main class="fx-lienzo" id="contenido">
+    <?php if ($Lb_EnAdmin): ?>
+    <div class="fx-admin">
+        <nav class="fx-admin-nav" aria-label="Secciones de administración">
+            <?php foreach ($Lar_Admin as $Lv_Grupo => $Lar_Items): ?>
+                <span class="fx-admin-grupo"><?= e($Lv_Grupo) ?></span>
+                <?php foreach ($Lar_Items as $Lar_Item): ?>
+                    <?php if ($Lar_Item['url'] === ''): ?>
+                        <span class="fx-admin-enlace" aria-disabled="true">
+                            <?= e($Lar_Item['texto']) ?><span class="fx-admin-pronto">Próximamente</span>
+                        </span>
+                    <?php else: ?>
+                        <a class="fx-admin-enlace" href="<?= e($Lar_Item['url']) ?>"
+                           <?= $Lv_Activo === $Lar_Item['clave'] ? 'aria-current="page"' : '' ?>>
+                            <?= e($Lar_Item['texto']) ?>
+                        </a>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+        </nav>
+        <div class="fx-admin-contenido">
+    <?php endif; ?>
     <div class="fx-titulo-pagina">
         <div>
+            <?php if ($Lb_EnAdmin): ?>
+                <div class="fx-miga">Administración · <?= e($Lv_GrupoAdmin) ?></div>
+            <?php endif; ?>
             <h1><?= e($Par_Pagina_i['titulo']) ?></h1>
             <?php if (!empty($Par_Pagina_i['subtitulo'])): ?>
                 <p><?= e($Par_Pagina_i['subtitulo']) ?></p>
@@ -247,6 +361,10 @@ function vista_encabezado(array $Par_Pagina_i): void
 /** Cierra la página. */
 function vista_pie(): void
 {
+    if (vista_admin_abierta()) {
+        // Cierra .fx-admin-contenido y .fx-admin abiertos en vista_encabezado().
+        echo "        </div>\n    </div>\n";
+    }
     ?>
     <footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-linea pt-4">
         <p class="fx-nota m-0">Sesión con cierre por inactividad a los 30 minutos.</p>
